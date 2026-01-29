@@ -159,7 +159,7 @@ export function CalculatorResults({
             const strategyName = dataPoint?.strategyName;
 
             return (
-                <div className="bg-background border-2 border-primary/20 rounded-xl p-3 shadow-2xl backdrop-blur-md">
+                <div className="bg-background opacity-100 border-2 border-primary/20 rounded-xl p-3 shadow-2xl z-50">
                     <p className="font-black text-xs mb-2 text-foreground uppercase tracking-widest border-b border-primary/10 pb-1.5 leading-none">
                         {strategyName || titleFormatter(label)}
                     </p>
@@ -374,7 +374,7 @@ export function CalculatorResults({
                                                     tickFormatter={(val) => `Yr ${val}`}
                                                 />
                                                 <YAxis tickFormatter={(value) => `${value.toFixed(1)}x`} />
-                                                <Tooltip content={<ChartTooltip titleFormatter={(l: any) => `Simulation Sample: Year ${l}`} />} />
+                                                <Tooltip wrapperStyle={{ zIndex: 100 }} content={<ChartTooltip titleFormatter={(l: any) => `Simulation Sample: Year ${l}`} />} />
                                                 <Line data={transformedMC.marketPaths.p50} dataKey="val" name="Median (50%)" stroke="#8884d8" dot={false} strokeWidth={2} />
                                                 <Line data={transformedMC.marketPaths.p20} dataKey="val" name="Conservative (20%)" stroke="#ffc658" dot={false} strokeWidth={2} />
                                                 <Line data={transformedMC.marketPaths.p5} dataKey="val" name="Worst (5%)" stroke="#ff0000" dot={false} strokeWidth={2} />
@@ -403,6 +403,7 @@ export function CalculatorResults({
                                 <XAxis dataKey="year" type="number" domain={['dataMin', 'dataMax']} />
                                 <YAxis tickFormatter={(value) => `$${value / 1000000}M`} />
                                 <Tooltip
+                                    wrapperStyle={{ zIndex: 100 }}
                                     content={
                                         <ChartTooltip
                                             itemSorter={(a: any, b: any) => {
@@ -543,7 +544,7 @@ export function CalculatorResults({
                                                         <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
                                                         <XAxis type="number" domain={[0, 1]} tickFormatter={(val) => `${(val * 100).toFixed(0)}%`} />
                                                         <YAxis type="category" dataKey="strategyName" width={100} style={{ fontSize: '12px' }} />
-                                                        <Tooltip content={<ChartTooltip titleFormatter={() => 'Strategy Comparison'} />} />
+                                                        <Tooltip wrapperStyle={{ zIndex: 100 }} content={<ChartTooltip titleFormatter={() => 'Strategy Comparison'} />} />
                                                         <Bar dataKey="successRate" fill="#8884d8" radius={[0, 4, 4, 0]}>
                                                             {strategyComparison.map((entry, index) => (
                                                                 <Cell
@@ -589,7 +590,7 @@ export function CalculatorResults({
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="year" />
                             <YAxis tickFormatter={(val) => `$${val / 1000}k`} />
-                            <Tooltip content={<ChartTooltip />} />
+                            <Tooltip wrapperStyle={{ zIndex: 100 }} content={<ChartTooltip />} />
                             {transformedResults.some(r => r.cashFlow.ss > 0) && <Bar dataKey="cashFlow.ss" name="Social Security" stackId="a" fill="#4ade80" />}
                             {transformedResults.some(r => r.cashFlow.additionalIncome > 0) && <Bar dataKey="cashFlow.additionalIncome" name="Additional Income" stackId="a" fill="#bef264" />}
                             {transformedResults.some(r => r.cashFlow.rmd > 0) && <Bar dataKey="cashFlow.rmd" name="RMD" stackId="a" fill="#fbbf24" />}
