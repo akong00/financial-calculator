@@ -12,6 +12,7 @@ import { MC_ITERATIONS } from "@/lib/constants"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Calculator, PlayCircle, RefreshCw } from "lucide-react"
+import { ThemeToggle } from "../theme-toggle"
 
 export function FinancialCalculator() {
     const [state, setState] = React.useState<CalculatorState>({
@@ -228,9 +229,13 @@ export function FinancialCalculator() {
                 </div>
             )}
             <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Retirement Calculator</h2>
-                    <p className="text-muted-foreground">Retirement projection with Monte Carlo simulation.</p>
+                <div className="max-w-[1600px] w-full items-center justify-between font-mono text-lg font-bold lg:flex">
+                    <div className="flex items-center gap-4">
+                        <h1 className="flex justify-center border bg-card text-card-foreground p-4 rounded-xl shadow-sm">
+                            Actually Good Retirement Calculator
+                        </h1>
+                        <ThemeToggle />
+                    </div>
                 </div>
                 <Button onClick={handleRun} disabled={isSimulating} size="lg">
                     {isSimulating ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <PlayCircle className="mr-2 h-4 w-4" />}
