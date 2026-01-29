@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  output: 'export',
+  basePath: '/financial-calculator',
+  images: {
+    unoptimized: true, // Required for GitHub Pages
+  },
 };
 
 export default nextConfig;
