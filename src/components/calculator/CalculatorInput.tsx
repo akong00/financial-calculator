@@ -74,7 +74,7 @@ const STYLES = {
     inputMd: "h-7 text-sm font-bold",
     inputMono: "font-mono font-bold text-xs bg-muted/30 border-transparent",
 
-    select: "flex w-full rounded-md border border-primary/20 bg-background shadow-sm focus:ring-1 focus:ring-primary outline-none transition-all duration-300",
+    select: "flex w-full rounded-md border border-primary/20 bg-background shadow-sm focus:ring-1 focus:ring-primary outline-none transition-all duration-300 cursor-pointer",
     selectSm: "h-6 px-1.5 py-0 text-[10px] font-medium",
     selectMd: "h-7 px-1.5 py-0 text-[11px] font-bold",
 
@@ -129,21 +129,43 @@ function UnitInput({ className, unit, color = 'default', type = "text", value, o
     const styles = COLOR_VARIANTS[color];
     const [localValue, setLocalValue] = React.useState(formatNumberWithCommas(value as number));
     const isPrefix = unit === '$';
+    const inputRef = React.useRef<HTMLInputElement>(null);
+    const selectionRef = React.useRef<number | null>(null);
 
     // Sync local value when prop changes (e.g. from calculation updates)
-    React.useEffect(() => {
+    React.useLayoutEffect(() => {
         const numericLocal = parseFloat(localValue.replace(/,/g, ''));
         const numericProp = Number(value);
         if (Math.abs(numericLocal - numericProp) > 0.001 || isNaN(numericLocal)) {
-            setLocalValue(formatNumberWithCommas(numericProp));
+            const formatted = formatNumberWithCommas(numericProp);
+            setLocalValue(formatted);
         }
     }, [value]);
+
+    // Restore selection after localValue update
+    React.useLayoutEffect(() => {
+        if (inputRef.current && selectionRef.current !== null) {
+            inputRef.current.setSelectionRange(selectionRef.current, selectionRef.current);
+            selectionRef.current = null;
+        }
+    });
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const raw = e.target.value;
         const numeric = raw.replace(/[^0-9.]/g, '');
+
+        // Track selection before update
+        const input = e.target;
+        const selectionStart = input.selectionStart;
+        const oldLength = localValue.length;
+
         setLocalValue(raw);
+
         if (onChange) {
+            // Update selectionRef to account for commas if necessary
+            // For now, just keep the raw position and adjust based on length change if simple
+            selectionRef.current = selectionStart;
+
             e.target.value = numeric;
             onChange(e);
         }
@@ -159,6 +181,7 @@ function UnitInput({ className, unit, color = 'default', type = "text", value, o
     return (
         <div className="relative">
             <Input
+                ref={inputRef}
                 type="text"
                 className={cn(
                     STYLES.input,

@@ -225,7 +225,9 @@ export function CalculatorResults({
                     <CardContent>
                         <div className="min-w-fit">
                             <div className="text-xl sm:text-2xl font-bold text-primary">
-                                {monteCarloResults ? formatCurrency(getValue(monteCarloResults.medianEndingWealth, isReal ? 1 : 0)) : '--'}
+                                {monteCarloResults
+                                    ? formatCurrency(isReal ? monteCarloResults.medianEndingWealth : monteCarloResults.medianEndingWealthNominal)
+                                    : '--'}
                             </div>
                             <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
                                 Median (Monte Carlo)
@@ -267,15 +269,39 @@ export function CalculatorResults({
                 </Card>
                 <Card>
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Total Taxes Paid ({isReal ? 'Real' : 'Nominal'})</CardTitle>
+                        <CardTitle className="text-sm font-medium">Spending & Taxes ({isReal ? 'Real' : 'Nominal'})</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
-                            {formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.cashFlow.taxes, curr.inflationAdjustmentFactor), 0))}
+                    <CardContent className="space-y-4">
+                        <div>
+                            <div className="text-xl sm:text-2xl font-bold">
+                                {monteCarloResults
+                                    ? formatCurrency(isReal ? monteCarloResults.medianTotalSpent : monteCarloResults.medianTotalSpentNominal)
+                                    : '--'}
+                            </div>
+                            <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
+                                Median Total Money Spent
+                            </p>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                            Cumulative Lifetime Tax
-                        </p>
+                        <div className="flex justify-between items-end gap-2">
+                            <div>
+                                <div className="text-lg font-bold">
+                                    {monteCarloResults
+                                        ? formatCurrency(isReal ? monteCarloResults.medianAnnualSpending : monteCarloResults.medianAnnualSpendingNominal)
+                                        : '--'}
+                                </div>
+                                <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
+                                    Median Annual Spending
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-lg font-bold">
+                                    {formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.cashFlow.taxes, curr.inflationAdjustmentFactor), 0))}
+                                </div>
+                                <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
+                                    Total Taxes Paid
+                                </p>
+                            </div>
+                        </div>
                     </CardContent>
                 </Card>
             </div>

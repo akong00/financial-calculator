@@ -1,5 +1,5 @@
 
-import { MonteCarloParams, runMonteCarlo } from "./monteCarlo";
+import { MonteCarloParams, runMonteCarlo, generateMarketPath } from "./monteCarlo";
 import { type SimulationParams } from "./simulation"; // import type
 import { MC_ITERATIONS } from "../constants";
 
@@ -50,6 +50,10 @@ export async function findBestRothStrategy(
         }
     ];
 
+    // Generate fair paths once for all candidates
+    const duration = baseParams.endYear - baseParams.startYear + 1;
+    const fairPaths = Array(MC_ITERATIONS).fill(0).map(() => generateMarketPath(duration, marketAssumptions));
+
     let bestResult: RothStrategyResult | null = null;
     const allResults: RothStrategyResult[] = [];
 
@@ -64,7 +68,8 @@ export async function findBestRothStrategy(
                 }
             },
             iterations: MC_ITERATIONS,
-            marketAssumptions
+            marketAssumptions,
+            preGeneratedPaths: fairPaths
         };
 
         const result = await runMonteCarlo(strategyParams, (subProgress) => {

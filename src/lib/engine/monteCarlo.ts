@@ -14,13 +14,19 @@ export interface MonteCarloParams {
         inflationMean: number;
         inflationStdDev: number;
     };
+    preGeneratedPaths?: { stockReturn: number, bondReturn: number, cashReturn: number, inflation: number }[][];
 }
 
 export interface MonteCarloResult {
     successRate: number;
     medianEndingWealth: number;
+    medianEndingWealthNominal: number;
     tenthPercentileWealth: number;
     ninetiethPercentileWealth: number;
+    medianTotalSpent: number;
+    medianTotalSpentNominal: number;
+    medianAnnualSpending: number;
+    medianAnnualSpendingNominal: number;
     percentiles: {
         p50: { year: number, netWorth: number, inflationAdjustmentFactor: number }[];
         p20: { year: number, netWorth: number, inflationAdjustmentFactor: number }[];
@@ -42,14 +48,14 @@ export interface MonteCarloResult {
     }[];
 }
 
-function randn_bm() {
+export function randn_bm() {
     let u = 0, v = 0;
     while (u === 0) u = Math.random();
     while (v === 0) v = Math.random();
     return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
 }
 
-function generateMarketPath(years: number, assumptions: MonteCarloParams['marketAssumptions']) {
+export function generateMarketPath(years: number, assumptions: MonteCarloParams['marketAssumptions']) {
     const path = [];
     for (let i = 0; i < years; i++) {
         path.push({
@@ -66,16 +72,20 @@ export async function runMonteCarlo(
     params: MonteCarloParams,
     onProgress?: (progress: number) => void
 ): Promise<MonteCarloResult> {
-    const { simulationParams, iterations, marketAssumptions } = params;
+    const { simulationParams, iterations, marketAssumptions, preGeneratedPaths } = params;
     const duration = simulationParams.endYear - simulationParams.startYear + 1;
 
     let successCount = 0;
-    const resultsData: { netWorth: number, results: AnnualResult[], marketPath: { stockReturn: number, bondReturn: number, cashReturn: number, inflation: number }[] }[] = [];
+    const resultsData: {
+        netWorth: number,
+        results: AnnualResult[],
+        marketPath: { stockReturn: number, bondReturn: number, cashReturn: number, inflation: number }[]
+    }[] = [];
 
     const BATCH_SIZE = 500;
 
     for (let i = 0; i < iterations; i++) {
-        const marketPath = generateMarketPath(duration, marketAssumptions);
+        const marketPath = preGeneratedPaths ? preGeneratedPaths[i] : generateMarketPath(duration, marketAssumptions);
 
         const runParams: SimulationParams = {
             ...simulationParams,
@@ -102,6 +112,29 @@ export async function runMonteCarlo(
         }
     }
     if (onProgress) onProgress(100);
+
+    // Calculate spending metrics for each simulation
+    const simulationStats = resultsData.map(d => {
+        const realAnnualSpends = d.results.map(r => r.cashFlow.expenses / r.inflationAdjustmentFactor);
+        const nominalAnnualSpends = d.results.map(r => r.cashFlow.expenses);
+
+        const totalSpentReal = realAnnualSpends.reduce((a, b) => a + b, 0);
+        const totalSpentNominal = nominalAnnualSpends.reduce((a, b) => a + b, 0);
+
+        const sortedReal = [...realAnnualSpends].sort((a, b) => a - b);
+        const medianAnnualReal = sortedReal[Math.floor(sortedReal.length / 2)];
+
+        const sortedNominal = [...nominalAnnualSpends].sort((a, b) => a - b);
+        const medianAnnualNominal = sortedNominal[Math.floor(sortedNominal.length / 2)];
+
+        return { totalSpentReal, totalSpentNominal, medianAnnualReal, medianAnnualNominal };
+    });
+
+    const medianTotalSpent = [...simulationStats].sort((a, b) => a.totalSpentReal - b.totalSpentReal)[Math.floor(iterations / 2)].totalSpentReal;
+    const medianTotalSpentNominal = [...simulationStats].sort((a, b) => a.totalSpentNominal - b.totalSpentNominal)[Math.floor(iterations / 2)].totalSpentNominal;
+
+    const medianAnnualSpending = [...simulationStats].sort((a, b) => a.medianAnnualReal - b.medianAnnualReal)[Math.floor(iterations / 2)].medianAnnualReal;
+    const medianAnnualSpendingNominal = [...simulationStats].sort((a, b) => a.medianAnnualNominal - b.medianAnnualNominal)[Math.floor(iterations / 2)].medianAnnualNominal;
 
     // Sort by Duration (failure year), then by Final REAL Net Worth.
     resultsData.sort((a, b) => {
@@ -134,7 +167,14 @@ export async function runMonteCarlo(
         return last.netWorth / last.inflationAdjustmentFactor;
     }
 
+    const getLastNominal = (idx: number) => {
+        const r = resultsData[idx].results;
+        const last = r[r.length - 1];
+        return last.netWorth;
+    }
+
     const medianEndingWealth = getLastReal(p50Idx);
+    const medianEndingWealthNominal = getLastNominal(p50Idx);
     const tenthPercentileWealth = getLastReal(p10Idx);
     const ninetiethPercentileWealth = getLastReal(p90Idx);
 
@@ -189,8 +229,13 @@ export async function runMonteCarlo(
     return {
         successRate: successCount / iterations,
         medianEndingWealth,
+        medianEndingWealthNominal,
         tenthPercentileWealth,
         ninetiethPercentileWealth,
+        medianTotalSpent,
+        medianTotalSpentNominal,
+        medianAnnualSpending,
+        medianAnnualSpendingNominal,
         percentiles: {
             p50: getTrajectory(p50Idx),
             p20: getTrajectory(p20Idx),
