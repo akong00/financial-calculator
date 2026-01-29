@@ -90,6 +90,8 @@ export interface AnnualResult {
         agi: number;
         taxableIncome: number;
         federal: number;
+        state: number;
+        medicare: number;
         effectiveRate: number;
         marginalRate: number;
     };
@@ -275,6 +277,8 @@ export function runSimulation(params: SimulationParams): AnnualResult[] {
             agi: taxRes.incomeSummary.agi,
             taxableIncome: taxRes.incomeSummary.taxableIncome,
             federal: taxRes.federalTax,
+            state: stateTax,
+            medicare: 0, // Assume no Medicare in starting part-year unless we add age check
             effectiveRate: taxRes.effectiveRate,
             marginalRate: taxRes.marginalRate
         },
@@ -521,6 +525,8 @@ export function runSimulation(params: SimulationParams): AnnualResult[] {
                 agi: taxResMain.incomeSummary.agi,
                 taxableIncome: taxResMain.incomeSummary.taxableIncome,
                 federal: taxResMain.federalTax,
+                state: stateTaxMain,
+                medicare: healthcareSurcharges,
                 effectiveRate: taxResMain.effectiveRate,
                 marginalRate: taxResMain.marginalRate
             },

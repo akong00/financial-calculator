@@ -67,7 +67,7 @@ export function CalculatorResults({
 
     const transformedResults = React.useMemo(() => {
         if (!singleRunResults) return [];
-        return singleRunResults.map(r => {
+        return singleRunResults.map((r): any => { // Use any for brevity or define a full interface
             const inf = r.inflationAdjustmentFactor;
             return {
                 ...r,
@@ -85,6 +85,11 @@ export function CalculatorResults({
                     additionalIncome: getValue(r.cashFlow.additionalIncome, inf),
                     rmd: getValue(r.cashFlow.rmd, inf),
                     taxes: getValue(r.cashFlow.taxes, inf),
+                    taxDetails: {
+                        federal: getValue(r.taxDetails.federal, inf),
+                        state: getValue(r.taxDetails.state, inf),
+                        medicare: getValue(r.taxDetails.medicare, inf),
+                    },
                     withdrawalBreakdown: {
                         ...r.cashFlow.withdrawalBreakdown,
                         taxable: getValue(r.cashFlow.withdrawalBreakdown.taxable, inf),
@@ -178,6 +183,24 @@ export function CalculatorResults({
                                 </span>
                             </div>
                         ))}
+                        {/* Special case for Taxes Paid breakdown */}
+                        {dataPoint?.cashFlow?.taxDetails && (
+                            <div className="pt-2 mt-2 border-t border-primary/10 space-y-1">
+                                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Tax Breakdown</p>
+                                <div className="flex justify-between gap-4 text-[10px]">
+                                    <span className="text-muted-foreground font-bold">Federal:</span>
+                                    <span className="font-mono text-foreground">{formatCurrency(dataPoint.cashFlow.taxDetails.federal)}</span>
+                                </div>
+                                <div className="flex justify-between gap-4 text-[10px]">
+                                    <span className="text-muted-foreground font-bold">State:</span>
+                                    <span className="font-mono text-foreground">{formatCurrency(dataPoint.cashFlow.taxDetails.state)}</span>
+                                </div>
+                                <div className="flex justify-between gap-4 text-[10px]">
+                                    <span className="text-muted-foreground font-bold">Medicare Premiums:</span>
+                                    <span className="font-mono text-foreground">{formatCurrency(dataPoint.cashFlow.taxDetails.medicare)}</span>
+                                </div>
+                            </div>
+                        )}
                         {/* Special case for Roth Strategy Comparison */}
                         {dataPoint?.medianNetWorth !== undefined && (
                             <div className="flex items-center justify-between gap-6 text-[11px] pt-1 mt-1 border-t border-primary/10">
@@ -293,13 +316,28 @@ export function CalculatorResults({
                                     Median Annual Spending
                                 </p>
                             </div>
-                            <div className="text-right">
+                            <div className="text-right group relative">
                                 <div className="text-lg font-bold">
                                     {formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.cashFlow.taxes, curr.inflationAdjustmentFactor), 0))}
                                 </div>
                                 <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
                                     Total Taxes Paid
                                 </p>
+                                {/* Tooltip explaining the total */}
+                                <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block bg-background border border-primary/20 rounded p-2 shadow-xl z-50 text-[10px] whitespace-nowrap">
+                                    <div className="flex justify-between gap-4">
+                                        <span>Federal:</span>
+                                        <strong>{formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.taxDetails.federal, curr.inflationAdjustmentFactor), 0))}</strong>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                        <span>State:</span>
+                                        <strong>{formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.taxDetails.state, curr.inflationAdjustmentFactor), 0))}</strong>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                        <span>Medicare:</span>
+                                        <strong>{formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.taxDetails.medicare, curr.inflationAdjustmentFactor), 0))}</strong>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </CardContent>
@@ -599,7 +637,7 @@ export function CalculatorResults({
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
-                                                {singleRunResults.map((row) => (
+                                                {transformedResults.map((row) => (
                                                     <TableRow key={row.year} className="hover:bg-muted/30 transition-colors">
                                                         <TableCell className="font-medium">{row.year} <span className="text-[10px] text-muted-foreground">({row.age})</span></TableCell>
                                                         <TableCell className="text-right">
@@ -637,7 +675,12 @@ export function CalculatorResults({
                                                         </TableCell>
                                                         <TableCell className="text-right">
                                                             <div className="font-bold">{formatCurrency(getValue(row.cashFlow.taxes, row.inflationAdjustmentFactor))}</div>
-                                                            <div className="text-[10px] text-muted-foreground font-black">({formatPercent(row.taxDetails.marginalRate)})</div>
+                                                            <div className="text-[9px] text-muted-foreground flex flex-col items-end opacity-80 leading-tight">
+                                                                <div>Fed: {formatCurrency(row.cashFlow.taxDetails.federal)}</div>
+                                                                <div>State: {formatCurrency(row.cashFlow.taxDetails.state)}</div>
+                                                                {row.cashFlow.taxDetails.medicare > 0 && <div className="text-blue-500 font-bold">Med: {formatCurrency(row.cashFlow.taxDetails.medicare)}</div>}
+                                                                <div className="font-black mt-0.5 opacity-100">Rate: {formatPercent(row.taxDetails.marginalRate)}</div>
+                                                            </div>
                                                         </TableCell>
                                                     </TableRow>
                                                 ))}
