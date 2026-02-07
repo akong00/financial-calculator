@@ -1,12 +1,10 @@
-import { LucideLineChart } from 'lucide-react';
-
-import { FinancialCalculator } from '@/components/calculator/FinancialCalculator';
+import { ScenarioManager } from '@/components/scenarios/ScenarioManager';
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center p-8 md:p-24 bg-background">
-      <div className="w-full max-w-[1600px]">
-        <FinancialCalculator />
+    <main className="flex min-h-screen bg-background overflow-hidden">
+      <div className="w-full h-screen">
+        <ScenarioManager />
       </div>
     </main>
   );

@@ -19,11 +19,6 @@ export async function findBestRothStrategy(
 
     const candidates: { name: string, desc: string, config: SimulationParams['strategy']['rothConversion'] }[] = [
         {
-            name: "0% Tax Conv & Harvesting",
-            desc: "Stay entirely in the 0% tax zone. Fills Standard Deduction with Roth conversions and uses the remaining 0% LTCG bracket for basis resets (harvesting).",
-            config: { type: 'fill_bracket', targetBracketRate: 0, stayIn0PercentZone: true }
-        },
-        {
             name: "Fill Standard Deduction",
             desc: "Always fill the Standard Deduction with Roth conversions, regardless of impact on LTCG taxation.",
             config: { type: 'fill_bracket', targetBracketRate: 0, stayIn0PercentZone: false }

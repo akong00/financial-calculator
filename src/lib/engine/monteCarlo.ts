@@ -14,7 +14,7 @@ export interface MonteCarloParams {
         inflationMean: number;
         inflationStdDev: number;
     };
-    preGeneratedPaths?: { stockReturn: number, bondReturn: number, cashReturn: number, inflation: number }[][];
+    preGeneratedPaths?: { stockReturn: number, bondReturn: number, cashReturn: number, inflation: number, propertyReturn: number }[][];
 }
 
 export interface MonteCarloResult {
@@ -63,6 +63,7 @@ export function generateMarketPath(years: number, assumptions: MonteCarloParams[
             bondReturn: assumptions.bondMean + assumptions.bondStdDev * randn_bm(),
             cashReturn: assumptions.cashMean + assumptions.cashStdDev * randn_bm(),
             inflation: assumptions.inflationMean + assumptions.inflationStdDev * randn_bm(),
+            propertyReturn: assumptions.inflationMean + 0.01 + (assumptions.inflationStdDev * randn_bm()) // Property = Inflation + 1% + volatility
         });
     }
     return path;
@@ -79,7 +80,7 @@ export async function runMonteCarlo(
     const resultsData: {
         netWorth: number,
         results: AnnualResult[],
-        marketPath: { stockReturn: number, bondReturn: number, cashReturn: number, inflation: number }[]
+        marketPath: { stockReturn: number, bondReturn: number, cashReturn: number, inflation: number, propertyReturn: number }[]
     }[] = [];
 
     const BATCH_SIZE = 500;
@@ -115,8 +116,8 @@ export async function runMonteCarlo(
 
     // Calculate spending metrics for each simulation
     const simulationStats = resultsData.map(d => {
-        const realAnnualSpends = d.results.map(r => r.cashFlow.expenses / r.inflationAdjustmentFactor);
-        const nominalAnnualSpends = d.results.map(r => r.cashFlow.expenses);
+        const realAnnualSpends = d.results.map(r => r.cashFlow.spending / r.inflationAdjustmentFactor);
+        const nominalAnnualSpends = d.results.map(r => r.cashFlow.spending);
 
         const totalSpentReal = realAnnualSpends.reduce((a, b) => a + b, 0);
         const totalSpentNominal = nominalAnnualSpends.reduce((a, b) => a + b, 0);

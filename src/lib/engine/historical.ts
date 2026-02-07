@@ -26,13 +26,9 @@ export function runHistoricalSimulation(baseParams: Omit<SimulationParams, 'mark
     const duration = baseParams.endYear - baseParams.startYear;
 
     // Only iterate through starting years that have enough subsequent historical data to cover the full duration.
-    // This removes the "wrap-around" behavior.
     const maxStartIdx = historicalData.length - duration - 1;
 
     if (maxStartIdx < 0) {
-        // If simulation duration is longer than all available historical data, we can't run it this way.
-        // Return empty results or adjust? 
-        // For now, let's return a safe object.
         return { results: [], successRate: 0, worstYear: 0, bestYear: 0, medianEndingNetWorth: 0 };
     }
 
@@ -49,7 +45,8 @@ export function runHistoricalSimulation(baseParams: Omit<SimulationParams, 'mark
                 stockReturn: data.sp500,
                 bondReturn: data.bondReturn ?? data.treasuryYield,
                 cashReturn: data.treasuryYield * 0.8,
-                inflation: data.inflation
+                inflation: data.inflation,
+                propertyReturn: data.inflation + 0.01 // Proxy
             });
         }
 
@@ -68,15 +65,15 @@ export function runHistoricalSimulation(baseParams: Omit<SimulationParams, 'mark
         let lowestRealNW = Infinity;
 
         for (const r of annualResults) {
-            // Check for failure (Depletion)
-            // Assuming failure is when liquid assets are 0? 
-            // In simulation.ts, we don't explicitly fail, we just track values.
-            // If total portfolio is 0, it's a failure.
-            const totalPortfolio = r.portfolio.taxable + r.portfolio.preTax + r.portfolio.roth + r.portfolio.cash;
-            if (totalPortfolio < 100) { // Epsilon
-                if (success) { // Capture first failure
+            // Failure check: Liquid assets near zero?
+            // Note: netWorth includes Property, but Property is illiquid. 
+            // We should check liquid portfolio.
+            const liquidPortfolio = r.portfolio.taxable + r.portfolio.preTax + r.portfolio.roth + r.portfolio.cash;
+
+            if (liquidPortfolio < 100) {
+                if (success) {
                     success = false;
-                    failureYear = simStartYear + (r.year - params.startYear); // Historical Year of failure
+                    failureYear = simStartYear + (r.year - params.startYear);
                     failureAge = r.age;
                 }
             }
@@ -85,7 +82,6 @@ export function runHistoricalSimulation(baseParams: Omit<SimulationParams, 'mark
             if (realNW < lowestRealNW) lowestRealNW = realNW;
         }
 
-        // If never failed, lowest might be end
         if (success && lowestRealNW === Infinity) lowestRealNW = lastRes.netWorth / lastRes.inflationAdjustmentFactor;
 
         results.push({
@@ -105,8 +101,8 @@ export function runHistoricalSimulation(baseParams: Omit<SimulationParams, 'mark
     return {
         results,
         successRate: successCount / results.length,
-        worstYear: sortedByNW[0].startYear,
-        bestYear: sortedByNW[results.length - 1].startYear,
-        medianEndingNetWorth: sortedByNW[Math.floor(results.length / 2)].endingNetWorth
+        worstYear: sortedByNW[0] ? sortedByNW[0].startYear : 0,
+        bestYear: sortedByNW[results.length - 1] ? sortedByNW[results.length - 1].startYear : 0,
+        medianEndingNetWorth: sortedByNW[Math.floor(results.length / 2)] ? sortedByNW[Math.floor(results.length / 2)].endingNetWorth : 0
     };
 }

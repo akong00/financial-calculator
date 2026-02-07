@@ -67,7 +67,7 @@ export function CalculatorResults({
 
     const transformedResults = React.useMemo(() => {
         if (!singleRunResults) return [];
-        return singleRunResults.map((r): any => { // Use any for brevity or define a full interface
+        return singleRunResults.map((r): any => { // Use any for brevity
             const inf = r.inflationAdjustmentFactor;
             return {
                 ...r,
@@ -75,14 +75,18 @@ export function CalculatorResults({
                 portfolio: {
                     ...r.portfolio,
                     taxable: getValue(r.portfolio.taxable, inf),
+                    taxableBasis: getValue(r.portfolio.taxableBasis, inf),
                     preTax: getValue(r.portfolio.preTax, inf),
                     roth: getValue(r.portfolio.roth, inf),
                     cash: getValue(r.portfolio.cash, inf),
                 },
                 cashFlow: {
                     ...r.cashFlow,
-                    ss: getValue(r.cashFlow.ss, inf),
-                    additionalIncome: getValue(r.cashFlow.additionalIncome, inf),
+                    income: {
+                        ss: getValue(r.cashFlow.income.ss, inf),
+                        other: getValue(r.cashFlow.income.other, inf),
+                        gross: getValue(r.cashFlow.income.gross, inf),
+                    },
                     rmd: getValue(r.cashFlow.rmd, inf),
                     taxes: getValue(r.cashFlow.taxes, inf),
                     taxDetails: {
@@ -90,13 +94,15 @@ export function CalculatorResults({
                         state: getValue(r.taxDetails.state, inf),
                         medicare: getValue(r.taxDetails.medicare, inf),
                     },
-                    withdrawalBreakdown: {
-                        ...r.cashFlow.withdrawalBreakdown,
-                        taxable: getValue(r.cashFlow.withdrawalBreakdown.taxable, inf),
-                        preTax: getValue(r.cashFlow.withdrawalBreakdown.preTax, inf),
-                        roth: getValue(r.cashFlow.withdrawalBreakdown.roth, inf),
-                        cash: getValue(r.cashFlow.withdrawalBreakdown.cash, inf),
-                    }
+                    withdrawals: {
+                        total: getValue(r.cashFlow.withdrawals.total, inf),
+                        taxable: getValue(r.cashFlow.withdrawals.taxable, inf),
+                        preTax: getValue(r.cashFlow.withdrawals.preTax, inf),
+                        roth: getValue(r.cashFlow.withdrawals.roth, inf),
+                        cash: getValue(r.cashFlow.withdrawals.cash, inf),
+                    },
+                    rothConversion: getValue(r.cashFlow.rothConversion, inf),
+                    taxGainHarvesting: getValue(r.cashFlow.taxGainHarvesting, inf)
                 }
             };
         });
@@ -558,10 +564,7 @@ export function CalculatorResults({
                                             </div>
                                             <div className="space-y-2 p-3 bg-muted/50 rounded-lg border text-[11px] text-muted-foreground italic leading-relaxed">
                                                 <p>
-                                                    <strong>Note on 0% Tax Conv & Harvesting:</strong> This strategy stays entirely within the 0% federal tax zone. It fills the Standard Deduction with Roth conversions first, then uses any remaining 0% LTCG bracket for "Basis Resets" (tax-gain harvesting). It limits conversions to ensure they do not push gains into the 15% bracket.
-                                                </p>
-                                                <p>
-                                                    <strong>Note on Fill Standard Deduction:</strong> This strategy focuses on converting the maximum amount possible at 0% ordinary income tax (filling the Standard Deduction). It does <strong>not</strong> restrict conversions based on LTCG, meaning it may push some realized gains into the 15% LTCG tax bracket if the total income exceeds the 0% threshold.
+                                                    <strong>Note on Fill Standard Deduction:</strong> This strategy focuses on converting the maximum amount possible at 0% ordinary income tax (filling the Standard Deduction).
                                                 </p>
                                             </div>
                                         </CardContent>
@@ -591,12 +594,12 @@ export function CalculatorResults({
                             <XAxis dataKey="year" />
                             <YAxis tickFormatter={(val) => `$${val / 1000}k`} />
                             <Tooltip wrapperStyle={{ zIndex: 100 }} content={<ChartTooltip />} />
-                            {transformedResults.some(r => r.cashFlow.ss > 0) && <Bar dataKey="cashFlow.ss" name="Social Security" stackId="a" fill="#4ade80" />}
-                            {transformedResults.some(r => r.cashFlow.additionalIncome > 0) && <Bar dataKey="cashFlow.additionalIncome" name="Additional Income" stackId="a" fill="#bef264" />}
+                            {transformedResults.some(r => r.cashFlow.income.ss > 0) && <Bar dataKey="cashFlow.income.ss" name="Social Security" stackId="a" fill="#4ade80" />}
+                            {transformedResults.some(r => r.cashFlow.income.other > 0) && <Bar dataKey="cashFlow.income.other" name="Additional Income" stackId="a" fill="#bef264" />}
                             {transformedResults.some(r => r.cashFlow.rmd > 0) && <Bar dataKey="cashFlow.rmd" name="RMD" stackId="a" fill="#fbbf24" />}
-                            {transformedResults.some(r => r.cashFlow.withdrawalBreakdown.taxable > 0) && <Bar dataKey="cashFlow.withdrawalBreakdown.taxable" name="Taxable Withdrawal" stackId="a" fill="#8884d8" />}
-                            {transformedResults.some(r => r.cashFlow.withdrawalBreakdown.preTax > 0) && <Bar dataKey="cashFlow.withdrawalBreakdown.preTax" name="Pre-Tax Withdrawal" stackId="a" fill="#f87171" />}
-                            {transformedResults.some(r => r.cashFlow.withdrawalBreakdown.roth > 0) && <Bar dataKey="cashFlow.withdrawalBreakdown.roth" name="Roth Withdrawal" stackId="a" fill="#22d3ee" />}
+                            {transformedResults.some(r => r.cashFlow.withdrawals.taxable > 0) && <Bar dataKey="cashFlow.withdrawals.taxable" name="Taxable Withdrawal" stackId="a" fill="#8884d8" />}
+                            {transformedResults.some(r => r.cashFlow.withdrawals.preTax > 0) && <Bar dataKey="cashFlow.withdrawals.preTax" name="Pre-Tax Withdrawal" stackId="a" fill="#f87171" />}
+                            {transformedResults.some(r => r.cashFlow.withdrawals.roth > 0) && <Bar dataKey="cashFlow.withdrawals.roth" name="Roth Withdrawal" stackId="a" fill="#22d3ee" />}
                             <Bar dataKey="cashFlow.taxes" name="Taxes Paid" stackId="a" fill="#64748b" />
                             <Legend />
                         </BarChart>
@@ -646,21 +649,21 @@ export function CalculatorResults({
                                                         </TableCell>
                                                         <TableCell className="text-right">
                                                             <div>{formatCurrency(getValue(row.portfolio.preTax, row.inflationAdjustmentFactor))}</div>
-                                                            {row.cashFlow.withdrawalBreakdown.preTax > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(getValue(row.cashFlow.withdrawalBreakdown.preTax, row.inflationAdjustmentFactor))}</div>}
+                                                            {row.cashFlow.withdrawals.preTax > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(getValue(row.cashFlow.withdrawals.preTax, row.inflationAdjustmentFactor))}</div>}
                                                         </TableCell>
                                                         <TableCell className="text-right">
                                                             <div>{formatCurrency(getValue(row.portfolio.roth, row.inflationAdjustmentFactor))}</div>
-                                                            {row.cashFlow.withdrawalBreakdown.roth > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(getValue(row.cashFlow.withdrawalBreakdown.roth, row.inflationAdjustmentFactor))}</div>}
+                                                            {row.cashFlow.withdrawals.roth > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(getValue(row.cashFlow.withdrawals.roth, row.inflationAdjustmentFactor))}</div>}
                                                         </TableCell>
                                                         <TableCell className="text-right">
                                                             <div>{formatCurrency(getValue(row.portfolio.taxable, row.inflationAdjustmentFactor))}</div>
-                                                            <div className="text-[9px] text-muted-foreground uppercase font-black tracking-tight opacity-70">Basis: {formatCurrency(getValue(row.taxableBasis, row.inflationAdjustmentFactor))}</div>
-                                                            {row.cashFlow.withdrawalBreakdown.taxable > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(getValue(row.cashFlow.withdrawalBreakdown.taxable, row.inflationAdjustmentFactor))}</div>}
+                                                            <div className="text-[9px] text-muted-foreground uppercase font-black tracking-tight opacity-70">Basis: {formatCurrency(getValue(row.portfolio.taxableBasis, row.inflationAdjustmentFactor))}</div>
+                                                            {row.cashFlow.withdrawals.taxable > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(getValue(row.cashFlow.withdrawals.taxable, row.inflationAdjustmentFactor))}</div>}
                                                         </TableCell>
                                                         <TableCell className="text-right font-medium">{formatCurrency(getValue(row.cashFlow.rmd, row.inflationAdjustmentFactor))}</TableCell>
                                                         <TableCell className="text-right">
-                                                            <div className="font-medium text-green-600 dark:text-green-400">{formatCurrency(getValue(row.cashFlow.ss, row.inflationAdjustmentFactor))}</div>
-                                                            {row.cashFlow.additionalIncome > 0 && <div className="text-[10px] text-green-600 font-bold">(+{formatCurrency(getValue(row.cashFlow.additionalIncome, row.inflationAdjustmentFactor))})</div>}
+                                                            <div className="font-medium text-green-600 dark:text-green-400">{formatCurrency(getValue(row.cashFlow.income.ss, row.inflationAdjustmentFactor))}</div>
+                                                            {row.cashFlow.income.other > 0 && <div className="text-[10px] text-green-600 font-bold">(+{formatCurrency(getValue(row.cashFlow.income.other, row.inflationAdjustmentFactor))})</div>}
                                                         </TableCell>
                                                         <TableCell className="text-right font-medium text-blue-600 dark:text-blue-400">
                                                             {row.cashFlow.rothConversion > 0 ? formatCurrency(getValue(row.cashFlow.rothConversion, row.inflationAdjustmentFactor)) : <span className="opacity-20">—</span>}
@@ -697,4 +700,3 @@ export function CalculatorResults({
         </div>
     )
 }
-
