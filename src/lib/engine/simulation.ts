@@ -33,8 +33,8 @@ export interface SimIncomeStream {
     name: string;
     type: 'social_security' | 'ordinary' | 'capital_gains' | 'tax_free';
     amount: number;
-    startAge: number;
-    endAge?: number;
+    startAge: number | string;
+    endAge?: number | string;
     growthRate: number;
     taxType: 'ordinary' | 'capital_gains' | 'tax_free';
     // For SS specifically:
@@ -45,8 +45,8 @@ export interface SimExpenseStrategy {
     name: string;
     amount: number;
     strategy: 'inflation_adjusted' | 'percentage' | 'retirement_smile';
-    startAge: number;
-    endAge?: number;
+    startAge: number | string;
+    endAge?: number | string;
     unexpectedAmount: number;
     unexpectedChance: number;
     floorAmount?: number;
@@ -62,6 +62,7 @@ export interface SimulationParams {
     // Initial State
     initialPortfolio: PortfolioState; // Aggregated starting buckets
     liabilities: SimLiability[];      // Detailed debt list
+    milestones: import('@/types/scenario-types').Milestone[];
 
     // Market Data (One global inflation, but maybe asset-specific returns?)
     // For simplicity, we still use global market returns for LIQUID assets, 
@@ -109,6 +110,13 @@ export interface SimulationParams {
         includeBasePremium: boolean;
         enableMedicaid: boolean;
     };
+    liquidAllocations: {
+        taxable: { stocks: number; bonds: number; cash: number };
+        preTax: { stocks: number; bonds: number; cash: number };
+        roth: { stocks: number; bonds: number; cash: number };
+        cash: { stocks: number; bonds: number; cash: number };
+    };
+    employerMatch?: number;
 }
 
 export interface AnnualResult {
@@ -190,8 +198,17 @@ function get401kLimits(age: number, currentYear: number): {
     };
 }
 
-function calculateExpenseAmount(strategy: SimExpenseStrategy, currentAge: number, inflationFactor: number, portfolioValue: number, activeCutPercent: number): number {
-    if (currentAge < strategy.startAge || (strategy.endAge && currentAge > strategy.endAge)) return 0;
+function resolveAge(age: number | string | undefined, defaultValue: number, resolvedMilestones: Record<string, number>): number {
+    if (age === undefined) return defaultValue;
+    if (typeof age === 'number') return age;
+    return resolvedMilestones[age] ?? 999; // If not resolved yet, use a large number so it doesn't trigger
+}
+
+function calculateExpenseAmount(strategy: SimExpenseStrategy, currentAge: number, inflationFactor: number, portfolioValue: number, activeCutPercent: number, resolvedMilestones: Record<string, number>): number {
+    const startAge = resolveAge(strategy.startAge, 0, resolvedMilestones);
+    const endAge = resolveAge(strategy.endAge, 999, resolvedMilestones);
+
+    if (currentAge < startAge || currentAge > endAge) return 0;
 
     let base = 0;
 
@@ -205,12 +222,12 @@ function calculateExpenseAmount(strategy: SimExpenseStrategy, currentAge: number
             break;
         case 'retirement_smile':
             let cumulativeSmileFactor = 1.0;
-            const startAge = strategy.startAge;
+            const smileStartAge = startAge;
 
-            for (let age = startAge + 1; age <= currentAge; age++) {
+            for (let age = smileStartAge + 1; age <= currentAge; age++) {
                 let r = 0;
                 if (age <= 75) {
-                    const progress = (age - startAge) / (Math.max(1, 75 - startAge));
+                    const progress = (age - smileStartAge) / (Math.max(1, 75 - smileStartAge));
                     r = -0.02 * progress;
                 } else if (age <= 90) {
                     const progress = (age - 75) / (90 - 75);
@@ -251,6 +268,7 @@ export function runSimulation(params: SimulationParams): AnnualResult[] {
     // Working State
     let currentPortfolio = { ...params.initialPortfolio };
     const currentLiabilities = params.liabilities.map(l => ({ ...l }));
+    const resolvedMilestones: Record<string, number> = {};
 
     // Persistent Cut Tracking
     const crashStates = params.expenseStreams.map(() => ({
@@ -271,6 +289,19 @@ export function runSimulation(params: SimulationParams): AnnualResult[] {
 
         const liquidPortfolioValue = currentPortfolio.taxable + currentPortfolio.preTax + currentPortfolio.roth + currentPortfolio.cash;
 
+        // 0. Resolve Milestones
+        params.milestones?.forEach(m => {
+            if (resolvedMilestones[m.id] === undefined) {
+                if (m.condition.type === 'portfolio_percent_greater_than_value') {
+                    const safeWithdrawalAmount = (liquidPortfolioValue + currentPortfolio.property) * (m.condition.portfolioPercent / 100);
+                    // condition is: certain percent of total portfolio is greater than a certain inflation adjusted value
+                    if (safeWithdrawalAmount >= m.condition.targetValue * inflationAccumulator) {
+                        resolvedMilestones[m.id] = currentAge;
+                    }
+                }
+            }
+        });
+
         // 1. Update Crash States & Calculate Expenses
         let spendingNeeded = 0;
         params.expenseStreams.forEach((exp, idx) => {
@@ -286,7 +317,7 @@ export function runSimulation(params: SimulationParams): AnnualResult[] {
                 }
             }
 
-            spendingNeeded += calculateExpenseAmount(exp, currentAge, inflationAccumulator, liquidPortfolioValue, state.activeCutPercent);
+            spendingNeeded += calculateExpenseAmount(exp, currentAge, inflationAccumulator, liquidPortfolioValue, state.activeCutPercent, resolvedMilestones);
 
             // Step duration
             if (state.yearsRemaining > 0) {
@@ -314,7 +345,10 @@ export function runSimulation(params: SimulationParams): AnnualResult[] {
         let ssAmount = 0;
 
         params.incomeStreams.forEach(inc => {
-            if (currentAge >= inc.startAge && (!inc.endAge || currentAge <= inc.endAge)) {
+            const startAge = resolveAge(inc.startAge, 0, resolvedMilestones);
+            const endAge = resolveAge(inc.endAge, 999, resolvedMilestones);
+
+            if (currentAge >= startAge && currentAge <= endAge) {
                 // Growth Model: Nominal Amount = Initial Amount * (1 + GrowthRate/100)^YearsSinceStart
                 // This ensures that if GrowthRate == InflationRate, the Real value (Nominal / InflationAccumulator)
                 // remains constant at the initial amount.
@@ -350,7 +384,7 @@ export function runSimulation(params: SimulationParams): AnnualResult[] {
         // Get contribution limits for this year
         const limits = get401kLimits(currentAge, year);
         const employerMatchAmount = params.savingsAllocation.trad401k ?
-            (params as any).employerMatch || 0 : 0; // TODO: Add employerMatch to params properly
+            params.employerMatch || 0 : 0;
 
         // 6. PRE-TAX Traditional 401k Contribution (happens BEFORE tax calculation)
         let trad401kContribution = 0;

@@ -2,6 +2,7 @@
 import * as React from "react";
 import { InputSectionProps, IncomeItem, IncomeType } from "@/types/scenario-types";
 import { CompactInput, STYLES } from "@/components/inputs/shared/FormComponents";
+import { AgeMilestoneInput } from "@/components/inputs/shared/AgeMilestoneInput";
 import { Select } from "@/components/ui/select";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -124,18 +125,18 @@ export function IncomeSection({ state, onChange }: InputSectionProps) {
                             </div>
 
                             <div className={STYLES.grid2}>
-                                <CompactInput
+                                <AgeMilestoneInput
                                     label="Start Age"
                                     value={item.startAge ?? state.currentAge}
-                                    onChange={(e) => updateIncome(item.id, { startAge: parseFloat(e.target.value) || 0 })}
-                                    step={1}
+                                    onChange={(val) => updateIncome(item.id, { startAge: val })}
+                                    milestones={state.milestones}
                                 />
                                 {item.type !== 'social_security' && item.type !== 'inheritance' && (
-                                    <CompactInput
+                                    <AgeMilestoneInput
                                         label="End Age"
                                         value={item.endAge ?? state.simulationEndAge}
-                                        onChange={(e) => updateIncome(item.id, { endAge: parseFloat(e.target.value) || 0 })}
-                                        step={1}
+                                        onChange={(val) => updateIncome(item.id, { endAge: val })}
+                                        milestones={state.milestones}
                                     />
                                 )}
                             </div>

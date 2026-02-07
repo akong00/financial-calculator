@@ -2,6 +2,7 @@
 import * as React from "react";
 import { InputSectionProps } from "@/types/scenario-types";
 import { CompactInput, STYLES } from "@/components/inputs/shared/FormComponents";
+import { AgeMilestoneInput } from "@/components/inputs/shared/AgeMilestoneInput";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -22,22 +23,18 @@ export function GoalsSection({ state, onChange }: InputSectionProps) {
             <CardContent className="space-y-4 px-1">
                 <div className="max-w-md space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                            <Label className={STYLES.label}>Current Age</Label>
-                            <Input
-                                className={STYLES.input}
-                                value={state.currentAge}
-                                onChange={(e) => handleChange('currentAge', parseInt(e.target.value) || 0)}
-                            />
-                        </div>
-                        <div className="space-y-1">
-                            <Label className={STYLES.label}>End of Plan Age</Label>
-                            <Input
-                                className={STYLES.input}
-                                value={state.simulationEndAge}
-                                onChange={(e) => handleChange('simulationEndAge', parseInt(e.target.value) || 0)}
-                            />
-                        </div>
+                        <AgeMilestoneInput
+                            label="Current Age"
+                            value={state.currentAge}
+                            onChange={(val) => handleChange('currentAge', typeof val === 'number' ? val : state.currentAge)}
+                            milestones={state.milestones}
+                        />
+                        <AgeMilestoneInput
+                            label="End of Plan Age"
+                            value={state.simulationEndAge}
+                            onChange={(val) => handleChange('simulationEndAge', typeof val === 'number' ? val : state.simulationEndAge)}
+                            milestones={state.milestones}
+                        />
                     </div>
 
                     <div className="space-y-1">

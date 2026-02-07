@@ -8,6 +8,18 @@ import { FilingStatus } from "@/lib/engine/taxes";
 
 export type AssetType = 'savings' | 'taxable' | 'traditional' | 'roth' | 'property' | 'other';
 
+export interface MilestoneCondition {
+    type: 'portfolio_percent_greater_than_value';
+    portfolioPercent: number; // e.g. 4
+    targetValue: number; // inflation adjusted
+}
+
+export interface Milestone {
+    id: string;
+    name: string;
+    condition: MilestoneCondition;
+}
+
 export interface AssetItem {
     id: string;
     name: string;
@@ -41,8 +53,8 @@ export interface IncomeItem {
     name: string;
     type: IncomeType;
     amount: number; // annual
-    startAge?: number;
-    endAge?: number; // if undefined, goes forever (or until death)
+    startAge?: number | string; // number (age) or string (milestone id)
+    endAge?: number | string; // if undefined, goes forever (or until death)
     growthRate: number;
     taxType: 'ordinary' | 'capital_gains' | 'tax_free';
 }
@@ -56,8 +68,8 @@ export interface ExpenseItem {
     type: ExpenseType;
     amount: number; // initial annual amount
     strategy: ExpenseStrategy;
-    startAge?: number;
-    endAge?: number;
+    startAge?: number | string;
+    endAge?: number | string;
     // For unexpected costs
     unexpectedAmount?: number;
     unexpectedChance?: number; // 0-100%
@@ -84,6 +96,7 @@ export interface CalculatorState {
     liabilities: LiabilityItem[];
     income: IncomeItem[];
     expenses: ExpenseItem[];
+    milestones: Milestone[];
 
     // Global economic assumptions (defaults)
     inflationRate: number;
@@ -178,6 +191,7 @@ export const DEFAULT_CALCULATOR_STATE: CalculatorState = {
     expenses: [
         { id: '1', name: 'Core Living', type: 'living', amount: 160000, strategy: 'retirement_smile', startAge: 55, endAge: 95, floorAmount: 100000, crashCutMultiple: 1.0, crashCutDuration: 5 }
     ],
+    milestones: [],
 
     isRothAutoOptimized: true,
     rothStrategy: 'none',

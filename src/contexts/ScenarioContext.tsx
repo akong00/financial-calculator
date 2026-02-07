@@ -44,7 +44,14 @@ export function ScenarioProvider({ children }: { children: React.ReactNode }) {
                 );
 
                 if (isValid) {
-                    setScenarios(parsed.scenarios || []);
+                    const scenariosWithMilestones = (parsed.scenarios || []).map((s: any) => ({
+                        ...s,
+                        inputState: {
+                            ...s.inputState,
+                            milestones: s.inputState.milestones || []
+                        }
+                    }));
+                    setScenarios(scenariosWithMilestones);
                     setActiveScenarioId(parsed.activeScenarioId || '');
                     loaded = true;
                 } else {

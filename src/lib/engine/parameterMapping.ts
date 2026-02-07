@@ -96,11 +96,11 @@ export function mapStateToParams(state: CalculatorState): SimulationParams {
         name: inc.name,
         type: inc.type as any, // Cast to match sim type
         amount: inc.amount,
-        startAge: Number(inc.startAge) || state.currentAge,
-        endAge: inc.endAge ? Number(inc.endAge) : undefined,
+        startAge: inc.startAge ?? state.currentAge,
+        endAge: inc.endAge,
         growthRate: inc.growthRate,
         taxType: inc.taxType,
-        ssBirthYear: new Date().getFullYear() - state.currentAge + (Number(inc.startAge) || 67) // Approximation
+        ssBirthYear: new Date().getFullYear() - state.currentAge + (typeof inc.startAge === 'number' ? inc.startAge : 67) // Approximation
     }));
 
     // 4. Expense Streams
@@ -108,8 +108,8 @@ export function mapStateToParams(state: CalculatorState): SimulationParams {
         name: exp.name,
         amount: exp.amount,
         strategy: exp.strategy,
-        startAge: Number(exp.startAge) || state.currentAge,
-        endAge: exp.endAge ? Number(exp.endAge) : undefined,
+        startAge: exp.startAge ?? state.currentAge,
+        endAge: exp.endAge,
         unexpectedAmount: exp.unexpectedAmount || 0,
         unexpectedChance: exp.unexpectedChance || 0,
         floorAmount: exp.floorAmount,
@@ -160,14 +160,15 @@ export function mapStateToParams(state: CalculatorState): SimulationParams {
             enableTaxGainHarvesting: state.enableTaxGainHarvesting
         },
         savingsAllocation: {
-            ...state.savingsAllocation,
-            employerMatch: state.employerMatch
-        } as any,
+            ...state.savingsAllocation
+        },
+        employerMatch: state.employerMatch,
         healthConfig: {
             medicarePeopleCount: state.medicarePeopleCount,
             includeBasePremium: state.includeBaseMedicare,
             enableMedicaid: state.enableMedicaidSafetyNet
         },
+        milestones: state.milestones || [],
         liquidAllocations
     };
 }

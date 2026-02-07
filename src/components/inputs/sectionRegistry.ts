@@ -4,8 +4,9 @@ import { AssetsSection } from "./sections/AssetsSection";
 import { LiabilitiesSection } from "./sections/LiabilitiesSection";
 import { IncomeSection } from "./sections/IncomeSection";
 import { ExpensesSection } from "./sections/ExpensesSection";
+import { MilestonesSection } from "./sections/MilestonesSection";
 import { OptimizationsSection } from "./sections/OptimizationsSection";
-import { Target, Wallet, CreditCard, DollarSign, TrendingDown, Settings, type LucideIcon } from "lucide-react";
+import { User, Wallet, CreditCard, DollarSign, TrendingDown, Settings, Flag, type LucideIcon } from "lucide-react";
 
 /**
  * Registry of all input sections
@@ -14,9 +15,16 @@ import { Target, Wallet, CreditCard, DollarSign, TrendingDown, Settings, type Lu
 export const INPUT_SECTIONS: Array<InputSectionConfig & { icon?: LucideIcon }> = [
     {
         id: "goals",
-        label: "Goals",
-        icon: Target,
+        label: "Profile",
+        icon: User,
         component: GoalsSection,
+        defaultCollapsed: false
+    },
+    {
+        id: "milestones",
+        label: "Milestones",
+        icon: Flag,
+        component: MilestonesSection,
         defaultCollapsed: false
     },
     {
