@@ -91,6 +91,19 @@ export function mapStateToParams(state: CalculatorState): SimulationParams {
         minPayment: l.minPayment * 12 // annualize
     }));
 
+    // Add property mortgages to liabilities
+    state.assets.forEach(asset => {
+        if (asset.type === 'property' && asset.mortgageBalance && asset.mortgageBalance > 0) {
+            liabilities.push({
+                id: `mortgage-${asset.id}`,
+                name: `Mortgage: ${asset.name}`,
+                balance: asset.mortgageBalance,
+                interestRate: asset.mortgageRate ?? 0,
+                minPayment: (asset.monthlyPayment ?? 0) * 12
+            });
+        }
+    });
+
     // 3. Income Streams
     const incomeStreams: SimIncomeStream[] = state.income.map(inc => ({
         name: inc.name,

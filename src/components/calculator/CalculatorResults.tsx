@@ -21,6 +21,7 @@ import {
     BarChart,
     Bar,
     Cell,
+    ReferenceLine,
 } from "recharts"
 import {
     Table,
@@ -79,6 +80,16 @@ export function CalculatorResults({
                     preTax: getValue(r.portfolio.preTax, inf),
                     roth: getValue(r.portfolio.roth, inf),
                     cash: getValue(r.portfolio.cash, inf),
+                    property: getValue(r.portfolio.property, inf),
+                },
+                totalDebt: getValue(r.totalDebt, inf),
+                assets: {
+                    roth: getValue(r.portfolio.roth, inf),
+                    brokerage: getValue(r.portfolio.taxable, inf),
+                    trad: getValue(r.portfolio.preTax, inf),
+                    property: getValue(r.portfolio.property, inf),
+                    other: getValue(r.portfolio.cash, inf),
+                    loans: -getValue(r.totalDebt, inf)
                 },
                 cashFlow: {
                     ...r.cashFlow,
@@ -601,6 +612,38 @@ export function CalculatorResults({
                             {transformedResults.some(r => r.cashFlow.withdrawals.preTax > 0) && <Bar dataKey="cashFlow.withdrawals.preTax" name="Pre-Tax Withdrawal" stackId="a" fill="#f87171" />}
                             {transformedResults.some(r => r.cashFlow.withdrawals.roth > 0) && <Bar dataKey="cashFlow.withdrawals.roth" name="Roth Withdrawal" stackId="a" fill="#22d3ee" />}
                             <Bar dataKey="cashFlow.taxes" name="Taxes Paid" stackId="a" fill="#64748b" />
+                            <Legend />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </CardContent>
+            </Card>
+
+            {/* Assets Stacked Bar Chart */}
+            <Card className="col-span-1">
+                <CardHeader>
+                    <CardTitle>Assets & Liabilities Over Time</CardTitle>
+                    <CardDescription>
+                        Growth of assets by category vs liabilities ({isReal ? 'Real' : 'Nominal'}).
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="h-[450px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                            data={transformedResults}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                            stackOffset="sign"
+                        >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="year" />
+                            <YAxis tickFormatter={(val) => `$${val / 1000000}M`} />
+                            <Tooltip wrapperStyle={{ zIndex: 100 }} content={<ChartTooltip />} />
+                            <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.8} />
+                            <Bar dataKey="assets.roth" name="Roth" stackId="a" fill="#22d3ee" />
+                            <Bar dataKey="assets.brokerage" name="Brokerage" stackId="a" fill="#8884d8" />
+                            <Bar dataKey="assets.trad" name="Trad" stackId="a" fill="#f87171" />
+                            <Bar dataKey="assets.property" name="Property" stackId="a" fill="#fbbf24" />
+                            <Bar dataKey="assets.other" name="Other Assets" stackId="a" fill="#4ade80" />
+                            <Bar dataKey="assets.loans" name="Loans" stackId="a" fill="#64748b" />
                             <Legend />
                         </BarChart>
                     </ResponsiveContainer>
