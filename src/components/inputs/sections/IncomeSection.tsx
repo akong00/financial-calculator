@@ -46,14 +46,11 @@ export function IncomeSection({ state, onChange }: InputSectionProps) {
         });
     };
 
-    const totalIncome = state.income.reduce((sum, item) => sum + item.amount, 0);
-
     return (
         <div className="space-y-4 p-1">
             <div className="flex justify-between items-center px-2">
                 <div>
                     <h3 className="text-sm font-semibold text-foreground">Annual Income Sources</h3>
-                    <p className="text-2xl font-bold text-green-600">${totalIncome.toLocaleString()}</p>
                 </div>
                 <Button onClick={addIncome} size="sm" className="gap-2">
                     <Plus className="w-4 h-4" /> Add Income

@@ -52,15 +52,11 @@ export function ExpensesSection({ state, onChange }: InputSectionProps) {
         });
     };
 
-    const totalBaseExepnse = state.expenses.reduce((sum, item) =>
-        sum + (item.strategy === 'percentage' ? 0 : item.amount), 0);
-
     return (
         <div className="space-y-4 p-1">
             <div className="flex justify-between items-center px-2">
                 <div>
                     <h3 className="text-sm font-semibold text-foreground">Annual Expenses</h3>
-                    <p className="text-sm text-muted-foreground">Base Total: <span className="font-bold text-foreground">${totalBaseExepnse.toLocaleString()}</span></p>
                 </div>
                 <Button onClick={addExpense} size="sm" className="gap-2">
                     <Plus className="w-4 h-4" /> Add Expense
