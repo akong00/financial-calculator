@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/table"
 import { RothStrategyResult } from "@/lib/engine/optimizer"
 import { MC_ITERATIONS } from "@/lib/constants"
+import { PercentileExplorer } from "@/components/outputs/PercentileExplorer"
 
 interface CalculatorResultsProps {
     singleRunResults: AnnualResult[];
@@ -452,6 +453,34 @@ export function CalculatorResults({
                         </ResponsiveContainer>
                     </CardContent>
                 </Card>
+            )}
+
+            {/* Percentile Simulation Explorer */}
+            {transformedMC && monteCarloResults?.sampleSimulations && (
+                <div className="px-1">
+                    <Accordion className="border-none">
+                        <AccordionItem className="border-none">
+                            <AccordionTrigger
+                                isOpen={openSections.includes('percentile_explorer')}
+                                onToggle={() => toggleSections('percentile_explorer')}
+                                className="flex items-center py-2 px-4 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary bg-gradient-to-r from-indigo-500/10 to-purple-500/10 rounded-lg border border-indigo-500/20 shadow-sm transition-colors"
+                            >
+                                <span>🔍 Percentile Simulation Explorer</span>
+                                <div className="ml-auto flex gap-1 text-xs mr-4">
+                                    <span className="text-muted-foreground">Explore individual outcomes</span>
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent isOpen={openSections.includes('percentile_explorer')}>
+                                <div className="mt-2">
+                                    <PercentileExplorer
+                                        sampleSimulations={monteCarloResults.sampleSimulations}
+                                        isReal={isReal}
+                                    />
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
+                </div>
             )}
 
             {/* Milestone Percentiles Table */}

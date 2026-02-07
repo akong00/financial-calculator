@@ -59,6 +59,12 @@ export interface MonteCarloResult {
         score5: number,
         score1: number   // Worst Case (Bottom 1% outcome = Latest)
     }>;
+    // Sample simulations for percentile explorer (allows visualizing specific outcomes)
+    sampleSimulations?: {
+        percentile: number;  // 5, 25, 50, 75, 95
+        results: AnnualResult[];
+        marketPath: { stockReturn: number, bondReturn: number, cashReturn: number, inflation: number, propertyReturn: number }[];
+    }[];
 }
 
 export function randn_bm() {
@@ -333,6 +339,16 @@ export async function runMonteCarlo(
                     score1: sorted[Math.floor(iterations * 0.99)]
                 }];
             })
-        )
+        ),
+        // Store sample simulations at key percentiles for the percentile explorer
+        sampleSimulations: [5, 25, 50, 75, 95].map(p => {
+            const idx = Math.floor(resultsData.length * (p / 100));
+            const data = resultsData[idx];
+            return {
+                percentile: p,
+                results: data.results,
+                marketPath: data.marketPath
+            };
+        })
     };
 }
