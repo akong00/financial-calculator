@@ -55,7 +55,7 @@ export function runHistoricalSimulation(baseParams: Omit<SimulationParams, 'mark
             marketReturns
         };
 
-        const annualResults = runSimulation(params);
+        const { results: annualResults } = runSimulation(params);
 
         // Analyze Outcome
         const lastRes = annualResults[annualResults.length - 1];

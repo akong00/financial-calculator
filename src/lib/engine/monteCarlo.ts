@@ -46,6 +46,16 @@ export interface MonteCarloResult {
         p95: number;
         avgInflationFactor: number;
     }[];
+    milestoneStats?: Record<string, {
+        name: string,
+        score99: number, // Best Case (Top 1% outcome = Earliest)
+        score95: number,
+        score75: number,
+        score50: number,
+        score25: number,
+        score5: number,
+        score1: number   // Worst Case (Bottom 1% outcome = Latest)
+    }>;
 }
 
 export function randn_bm() {
@@ -77,10 +87,16 @@ export async function runMonteCarlo(
     const duration = simulationParams.endYear - simulationParams.startYear + 1;
 
     let successCount = 0;
+    const milestoneAges: Record<string, number[]> = {};
+    params.simulationParams.milestones?.forEach(m => {
+        milestoneAges[m.id] = [];
+    });
+
     const resultsData: {
         netWorth: number,
         results: AnnualResult[],
-        marketPath: { stockReturn: number, bondReturn: number, cashReturn: number, inflation: number, propertyReturn: number }[]
+        marketPath: { stockReturn: number, bondReturn: number, cashReturn: number, inflation: number, propertyReturn: number }[],
+        resolvedMilestones: Record<string, number>
     }[] = [];
 
     const BATCH_SIZE = 500;
@@ -94,7 +110,7 @@ export async function runMonteCarlo(
         };
 
         const result = runSimulation(runParams);
-        const finalNetWorth = result[result.length - 1].netWorth;
+        const finalNetWorth = result.results[result.results.length - 1].netWorth;
 
         if (finalNetWorth > 0) {
             successCount++;
@@ -102,8 +118,15 @@ export async function runMonteCarlo(
 
         resultsData.push({
             netWorth: finalNetWorth,
-            results: result,
-            marketPath
+            results: result.results,
+            marketPath,
+            resolvedMilestones: result.resolvedMilestones
+        });
+
+        // Track milestones
+        params.simulationParams.milestones?.forEach(m => {
+            const age = result.resolvedMilestones[m.id];
+            milestoneAges[m.id].push(age !== undefined ? age : 999);
         });
 
         if (i % BATCH_SIZE === 0 && i > 0) {
@@ -247,6 +270,22 @@ export async function runMonteCarlo(
             p20: getMarketIndex(p20Idx),
             p5: getMarketIndex(p5Idx)
         },
-        percentileBands
+        percentileBands,
+        milestoneStats: Object.fromEntries(
+            Object.entries(milestoneAges).map(([id, ages]) => {
+                const sorted = [...ages].sort((a, b) => a - b);
+                const milestone = params.simulationParams.milestones?.find(m => m.id === id);
+                return [id, {
+                    name: milestone?.name || 'Unnamed',
+                    score99: sorted[Math.floor(iterations * 0.01)],
+                    score95: sorted[Math.floor(iterations * 0.05)],
+                    score75: sorted[Math.floor(iterations * 0.25)],
+                    score50: sorted[Math.floor(iterations * 0.50)],
+                    score25: sorted[Math.floor(iterations * 0.75)],
+                    score5: sorted[Math.floor(iterations * 0.95)],
+                    score1: sorted[Math.floor(iterations * 0.99)]
+                }];
+            })
+        )
     };
 }

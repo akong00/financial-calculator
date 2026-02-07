@@ -262,7 +262,7 @@ function calculateExpenseAmount(strategy: SimExpenseStrategy, currentAge: number
     return base;
 }
 
-export function runSimulation(params: SimulationParams): AnnualResult[] {
+export function runSimulation(params: SimulationParams): { results: AnnualResult[], resolvedMilestones: Record<string, number> } {
     const results: AnnualResult[] = [];
 
     // Working State
@@ -670,5 +670,5 @@ export function runSimulation(params: SimulationParams): AnnualResult[] {
         });
     }
 
-    return results;
+    return { results, resolvedMilestones };
 }

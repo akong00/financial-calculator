@@ -52,7 +52,7 @@ export async function runFullScenario(
     await new Promise(resolve => setTimeout(resolve, 0));
 
     // 4. Single Run
-    const singleRunResults = runSimulation(params);
+    const { results: singleRunResults } = runSimulation(params);
     onProgress(50);
     await new Promise(resolve => setTimeout(resolve, 0));
 

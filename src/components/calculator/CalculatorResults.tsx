@@ -454,6 +454,68 @@ export function CalculatorResults({
                 </Card>
             )}
 
+            {/* Milestone Percentiles Table */}
+            {transformedMC && transformedMC.milestoneStats && Object.keys(transformedMC.milestoneStats).length > 0 && (
+                <Card className="max-w-4xl">
+                    <CardHeader>
+                        <CardTitle className="text-xl font-bold flex items-center gap-2">
+                            <span className="p-1.5 bg-purple-500/10 rounded-lg">🚩</span>
+                            Milestone Projections (Age Reached)
+                        </CardTitle>
+                        <CardDescription>
+                            Statistical estimates of the age when milestones are achieved across {MC_ITERATIONS} simulations.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-muted/30">
+                                    <TableHead className="font-bold">Milestone</TableHead>
+                                    <TableHead className="text-right font-bold text-green-600">99%</TableHead>
+                                    <TableHead className="text-right font-bold text-green-600">95%</TableHead>
+                                    <TableHead className="text-right font-bold text-green-600">75%</TableHead>
+                                    <TableHead className="text-right font-bold">50%</TableHead>
+                                    <TableHead className="text-right font-bold text-red-600">25%</TableHead>
+                                    <TableHead className="text-right font-bold text-red-600">5%</TableHead>
+                                    <TableHead className="text-right font-bold text-red-600">1%</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {Object.entries(transformedMC.milestoneStats).map(([id, stats]) => (
+                                    <TableRow key={id} className="hover:bg-muted/20">
+                                        <TableCell className="font-bold text-primary">{stats.name}</TableCell>
+                                        <TableCell className="text-right font-mono font-bold text-green-600">
+                                            {stats.score99 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score99}
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono font-bold text-green-600">
+                                            {stats.score95 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score95}
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono font-bold text-green-600">
+                                            {stats.score75 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score75}
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono font-black text-lg">
+                                            {stats.score50 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score50}
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono font-bold text-red-600">
+                                            {stats.score25 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score25}
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono font-bold text-red-600">
+                                            {stats.score5 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score5}
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono font-bold text-red-600">
+                                            {stats.score1 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score1}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                        <div className="p-3 text-[10px] text-muted-foreground italic border-t bg-muted/10">
+                            <strong>Note on Column Meanings:</strong> These percentiles represent your "Performance Score". A <strong>99% Score</strong> means you performed better than 99% of outcomes (achieving the milestone very early). A <strong>1% Score</strong> represents the worst outcome (achieving it very late or not at all).
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
             {/* Historical Simulation Analysis */}
             {historicalResults && (
                 <div className="px-1">
@@ -621,7 +683,7 @@ export function CalculatorResults({
             {/* Assets Stacked Bar Chart */}
             <Card className="col-span-1">
                 <CardHeader>
-                    <CardTitle>Assets & Liabilities Over Time</CardTitle>
+                    <CardTitle>Theoretical Assets & Liabilities Over Time</CardTitle>
                     <CardDescription>
                         Growth of assets by category vs liabilities ({isReal ? 'Real' : 'Nominal'}).
                     </CardDescription>
