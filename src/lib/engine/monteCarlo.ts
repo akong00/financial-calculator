@@ -1,5 +1,7 @@
-
 import { runSimulation, SimulationParams, AnnualResult } from './simulation';
+import { getHistoricalData } from '../data/historicalReturns';
+import { ROLLING_REAL_RETURNS } from '../data/rollingReturns';
+import { MonteCarloDistributionType } from '@/types/scenario-types';
 
 export interface MonteCarloParams {
     simulationParams: Omit<SimulationParams, 'marketReturns'>;
@@ -14,6 +16,7 @@ export interface MonteCarloParams {
         inflationMean: number;
         inflationStdDev: number;
     };
+    mcDistributionType?: MonteCarloDistributionType;
     preGeneratedPaths?: { stockReturn: number, bondReturn: number, cashReturn: number, inflation: number, propertyReturn: number }[][];
 }
 
@@ -79,6 +82,43 @@ export function generateMarketPath(years: number, assumptions: MonteCarloParams[
     return path;
 }
 
+export function generateHistoricalMarketPath(years: number, assumptions: MonteCarloParams['marketAssumptions']) {
+    const historicalYearly = getHistoricalData();
+    const path = [];
+    for (let i = 0; i < years; i++) {
+        // 1. Simulate inflation for this year based on user assumptions
+        const simulatedInflation = assumptions.inflationMean + assumptions.inflationStdDev * randn_bm();
+
+        // 2. Sample a historical real return from the 1800+ monthly rolling returns
+        const randomIdx = Math.floor(Math.random() * ROLLING_REAL_RETURNS.length);
+        const realStockReturn = ROLLING_REAL_RETURNS[randomIdx];
+
+        // 3. Calculate nominal stock return: (1 + Real) * (1 + Inflation) - 1
+        const stockReturnNominal = (1 + realStockReturn) * (1 + simulatedInflation) - 1;
+
+        // 4. Sample real bond/cash returns from yearly historical data and adjust to current inflation
+        const histIdx = Math.floor(Math.random() * historicalYearly.length);
+        const histYear = historicalYearly[histIdx];
+
+        const histBondNominal = histYear.bondReturn ?? histYear.treasuryYield;
+        const realBondReturn = (1 + histBondNominal) / (1 + histYear.inflation) - 1;
+        const bondReturnNominal = (1 + realBondReturn) * (1 + simulatedInflation) - 1;
+
+        const histCashNominal = histYear.treasuryYield * 0.8;
+        const realCashReturn = (1 + histCashNominal) / (1 + histYear.inflation) - 1;
+        const cashReturnNominal = (1 + realCashReturn) * (1 + simulatedInflation) - 1;
+
+        path.push({
+            stockReturn: stockReturnNominal,
+            bondReturn: bondReturnNominal,
+            cashReturn: cashReturnNominal,
+            inflation: simulatedInflation,
+            propertyReturn: simulatedInflation + 0.01 // Proxy
+        });
+    }
+    return path;
+}
+
 export async function runMonteCarlo(
     params: MonteCarloParams,
     onProgress?: (progress: number) => void
@@ -102,7 +142,14 @@ export async function runMonteCarlo(
     const BATCH_SIZE = 500;
 
     for (let i = 0; i < iterations; i++) {
-        const marketPath = preGeneratedPaths ? preGeneratedPaths[i] : generateMarketPath(duration, marketAssumptions);
+        let marketPath;
+        if (preGeneratedPaths) {
+            marketPath = preGeneratedPaths[i];
+        } else if (params.mcDistributionType === 'historical') {
+            marketPath = generateHistoricalMarketPath(duration, marketAssumptions);
+        } else {
+            marketPath = generateMarketPath(duration, marketAssumptions);
+        }
 
         const runParams: SimulationParams = {
             ...simulationParams,

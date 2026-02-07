@@ -1,12 +1,13 @@
-
 import * as React from "react";
-import { InputSectionProps, AssetItem, AssetType } from "@/types/scenario-types";
-import { CompactInput, STYLES } from "@/components/inputs/shared/FormComponents";
+import { InputSectionProps, AssetItem, AssetType, MonteCarloDistributionType } from "@/types/scenario-types";
+import { CompactInput, STYLES, Field, UnitInput } from "@/components/inputs/shared/FormComponents";
 import { Select } from "@/components/ui/select";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Home, TrendingUp, DollarSign, PiggyBank } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ROLLING_REAL_RETURNS_MEAN } from "@/lib/data/rollingReturns";
+import { Label } from "@/components/ui/label"; // Added Label import
 
 const ASSET_TYPES: { value: AssetType, label: string, icon: React.ReactNode }[] = [
     { value: 'taxable', label: 'Brokerage (Taxable)', icon: <TrendingUp className="w-4 h-4" /> },
@@ -18,6 +19,10 @@ const ASSET_TYPES: { value: AssetType, label: string, icon: React.ReactNode }[] 
 ];
 
 export function AssetsSection({ state, onChange }: InputSectionProps) {
+    const effectiveStockReturn = state.mcDistributionType === 'historical'
+        ? (ROLLING_REAL_RETURNS_MEAN * 100) + state.inflationRate
+        : state.stockReturn;
+
     const addAsset = () => {
         const newAsset: AssetItem = {
             id: crypto.randomUUID(),
@@ -59,25 +64,6 @@ export function AssetsSection({ state, onChange }: InputSectionProps) {
                 </Button>
             </div>
 
-            {/* Global Return Defaults */}
-            <div className="bg-primary/5 p-3 rounded-lg border border-primary/10 grid grid-cols-2 gap-4 mx-2">
-                <CompactInput
-                    label="Stock Return Default"
-                    value={state.stockReturn}
-                    onChange={(e) => onChange({ ...state, stockReturn: parseFloat(e.target.value) || 0 })}
-                    unit="%"
-                    step={0.1}
-                    color="blue"
-                />
-                <CompactInput
-                    label="Bond Return Default"
-                    value={state.bondReturn}
-                    onChange={(e) => onChange({ ...state, bondReturn: parseFloat(e.target.value) || 0 })}
-                    unit="%"
-                    step={0.1}
-                    color="orange"
-                />
-            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {state.assets.map((asset) => (
@@ -170,7 +156,7 @@ export function AssetsSection({ state, onChange }: InputSectionProps) {
                                                 <div className="flex justify-between items-center mb-1">
                                                     <span className="text-[10px] font-medium text-muted-foreground">{asset.stockWeight}% S | {100 - asset.stockWeight}% B</span>
                                                     <span className="text-xs font-bold text-primary">
-                                                        {(((asset.stockWeight) / 100 * state.stockReturn) + ((1 - (asset.stockWeight) / 100) * state.bondReturn)).toFixed(1)}%
+                                                        {(((asset.stockWeight) / 100 * effectiveStockReturn) + ((1 - (asset.stockWeight) / 100) * state.bondReturn)).toFixed(1)}%
                                                     </span>
                                                 </div>
                                                 <input

@@ -27,7 +27,7 @@ export async function runFullScenario(
 
     const marketAssumptions = {
         stockMean: blendedReturn,
-        stockStdDev: blendedStdDev,
+        stockStdDev: state.stockStdDev / 100, // Use user input
         bondMean: 0.03,
         bondStdDev: 0.03,
         cashMean: 0.01,
@@ -61,7 +61,8 @@ export async function runFullScenario(
     const monteCarloResults = await runMonteCarlo({
         simulationParams: mcParams,
         iterations: MC_ITERATIONS,
-        marketAssumptions
+        marketAssumptions,
+        mcDistributionType: state.mcDistributionType
     }, (p) => {
         onProgress(50 + (p * 0.4));
     });

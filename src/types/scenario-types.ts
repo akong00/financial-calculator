@@ -3,6 +3,9 @@ import { MonteCarloResult } from "@/lib/engine/monteCarlo";
 import { HistoricalAggregateResult } from "@/lib/engine/historical";
 import { RothStrategyResult } from "@/lib/engine/optimizer";
 import { FilingStatus } from "@/lib/engine/taxes";
+import { MC_ITERATIONS } from "@/lib/constants";
+
+export type MonteCarloDistributionType = 'historical' | 'custom';
 
 // --- New Itemized Types ---
 
@@ -88,6 +91,7 @@ export interface CalculatorState {
     currentAge: number;
     simulationEndAge: number;
     stockReturn: number;
+    stockStdDev: number; // Added
     bondReturn: number;
     filingStatus: FilingStatus;
 
@@ -124,6 +128,9 @@ export interface CalculatorState {
     medicarePeopleCount: number;
     includeBaseMedicare: boolean;
     enableMedicaidSafetyNet: boolean;
+
+    // Monte Carlo Config
+    mcDistributionType: MonteCarloDistributionType;
 }
 
 /**
@@ -173,6 +180,7 @@ export const DEFAULT_CALCULATOR_STATE: CalculatorState = {
     currentAge: 55,
     simulationEndAge: 95,
     stockReturn: 7.0,
+    stockStdDev: 15.0, // Default to 15%
     bondReturn: 3.5,
     filingStatus: 'married_joint',
 
@@ -212,4 +220,6 @@ export const DEFAULT_CALCULATOR_STATE: CalculatorState = {
     medicarePeopleCount: 2,
     includeBaseMedicare: true,
     enableMedicaidSafetyNet: true,
+
+    mcDistributionType: 'custom',
 };

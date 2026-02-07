@@ -6,6 +6,8 @@ import { Select } from "@/components/ui/select";
 import { Checkbox } from "../../ui/checkbox";  // Changed to relative import
 import { Field, CompactInput, STYLES } from "@/components/inputs/shared/FormComponents";
 import { cn } from "@/lib/utils";
+import { HistoricalDistributionChart } from "@/components/inputs/shared/HistoricalDistributionChart";
+import { ROLLING_REAL_RETURNS_MEAN } from "@/lib/data/rollingReturns";
 
 export function OptimizationsSection({ state, onChange }: InputSectionProps) {
     const handleChange = (field: string, value: string | number | boolean) => {
@@ -25,6 +27,71 @@ export function OptimizationsSection({ state, onChange }: InputSectionProps) {
     return (
         <div className="p-2">
             <div className="space-y-4 max-w-md">
+                <div>
+                    <label className={STYLES.labelHeading}>Market Assumptions</label>
+                    <div className="space-y-2 mt-2">
+                        <div className="bg-primary/5 p-3 rounded-lg border border-primary/10 grid grid-cols-1 gap-4">
+                            <div className="flex flex-col">
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-[10px] font-black text-blue-500 uppercase leading-none">
+                                        {state.mcDistributionType === 'historical' ? 'Nominal (incl. infl) Stock Returns' : 'Real (infl-adj) Stock Returns'}
+                                    </span>
+                                    <div className="flex bg-blue-500/10 rounded overflow-hidden border border-blue-500/20 p-0.5">
+                                        <button
+                                            onClick={() => onChange({ ...state, mcDistributionType: 'custom' })}
+                                            className={cn("px-2 py-0.5 text-[8px] font-black uppercase transition-all rounded",
+                                                state.mcDistributionType === 'custom' ? "bg-blue-500 text-white shadow-sm" : "text-blue-500 hover:bg-blue-500/10"
+                                            )}
+                                        >Custom</button>
+                                        <button
+                                            onClick={() => onChange({ ...state, mcDistributionType: 'historical' })}
+                                            className={cn("px-2 py-0.5 text-[8px] font-black uppercase transition-all rounded",
+                                                state.mcDistributionType === 'historical' ? "bg-blue-500 text-white shadow-sm" : "text-blue-500 hover:bg-blue-500/10"
+                                            )}
+                                        >Historical</button>
+                                    </div>
+                                </div>
+
+                                {state.mcDistributionType === 'custom' ? (
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <CompactInput
+                                            label="Mean"
+                                            value={state.stockReturn}
+                                            onChange={(e) => onChange({ ...state, stockReturn: parseFloat(e.target.value) || 0 })}
+                                            unit="%"
+                                            step={0.1}
+                                            color="blue"
+                                        />
+                                        <CompactInput
+                                            label="StdDev"
+                                            value={state.stockStdDev}
+                                            onChange={(e) => onChange({ ...state, stockStdDev: parseFloat(e.target.value) || 0 })}
+                                            unit="%"
+                                            step={0.1}
+                                            color="blue"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col justify-center">
+                                        <HistoricalDistributionChart />
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex flex-col">
+                                <CompactInput
+                                    label="Bond Return Default"
+                                    value={state.bondReturn}
+                                    onChange={(e) => onChange({ ...state, bondReturn: parseFloat(e.target.value) || 0 })}
+                                    unit="%"
+                                    step={0.1}
+                                    color="orange"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div>
                     <label className={STYLES.labelHeading}>Assumptions</label>
                     <div className="space-y-2 mt-2">
