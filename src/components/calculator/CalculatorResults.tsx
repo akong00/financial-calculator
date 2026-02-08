@@ -1229,40 +1229,40 @@ const DetailedBreakdownSection = React.memo(({ transformedResults, isReal, forma
                                 <TableRow key={row.year} className="hover:bg-muted/30 transition-colors">
                                     <TableCell className="font-medium">{row.year} <span className="text-[10px] text-muted-foreground">({row.age})</span></TableCell>
                                     <TableCell className="text-right">
-                                        <div className="font-bold text-primary">{formatCurrency(getValue(row.netWorth, row.inflationAdjustmentFactor))}</div>
+                                        <div className="font-bold text-primary">{formatCurrency(row.netWorth)}</div>
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <div>{formatCurrency(getValue(row.portfolio.preTax, row.inflationAdjustmentFactor))}</div>
-                                        {row.cashFlow.withdrawals.preTax > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(getValue(row.cashFlow.withdrawals.preTax, row.inflationAdjustmentFactor))}</div>}
+                                        <div>{formatCurrency(row.portfolio.preTax)}</div>
+                                        {row.cashFlow.withdrawals.preTax > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(row.cashFlow.withdrawals.preTax)}</div>}
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <div>{formatCurrency(getValue(row.portfolio.roth, row.inflationAdjustmentFactor))}</div>
-                                        {row.cashFlow.withdrawals.roth > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(getValue(row.cashFlow.withdrawals.roth, row.inflationAdjustmentFactor))}</div>}
+                                        <div>{formatCurrency(row.portfolio.roth)}</div>
+                                        {row.cashFlow.withdrawals.roth > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(row.cashFlow.withdrawals.roth)}</div>}
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <div>{formatCurrency(getValue(row.portfolio.taxable, row.inflationAdjustmentFactor))}</div>
-                                        <div className="text-[9px] text-muted-foreground uppercase font-black tracking-tight opacity-70">Basis: {formatCurrency(getValue(row.portfolio.taxableBasis, row.inflationAdjustmentFactor))}</div>
-                                        {row.cashFlow.withdrawals.taxable > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(getValue(row.cashFlow.withdrawals.taxable, row.inflationAdjustmentFactor))}</div>}
+                                        <div>{formatCurrency(row.portfolio.taxable)}</div>
+                                        <div className="text-[9px] text-muted-foreground uppercase font-black tracking-tight opacity-70">Basis: {formatCurrency(row.portfolio.taxableBasis)}</div>
+                                        {row.cashFlow.withdrawals.taxable > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(row.cashFlow.withdrawals.taxable)}</div>}
                                     </TableCell>
-                                    <TableCell className="text-right font-medium">{formatCurrency(getValue(row.cashFlow.rmd, row.inflationAdjustmentFactor))}</TableCell>
+                                    <TableCell className="text-right font-medium">{formatCurrency(row.cashFlow.rmd)}</TableCell>
                                     <TableCell className="text-right">
-                                        <div className="font-medium text-green-600 dark:text-green-400">{formatCurrency(getValue(row.cashFlow.income.ss, row.inflationAdjustmentFactor))}</div>
-                                        {row.cashFlow.income.other > 0 && <div className="text-[10px] text-green-600 font-bold">(+{formatCurrency(getValue(row.cashFlow.income.other, row.inflationAdjustmentFactor))})</div>}
+                                        <div className="font-medium text-green-600 dark:text-green-400">{formatCurrency(row.cashFlow.income.ss)}</div>
+                                        {row.cashFlow.income.other > 0 && <div className="text-[10px] text-green-600 font-bold">(+{formatCurrency(row.cashFlow.income.other)})</div>}
                                     </TableCell>
                                     <TableCell className="text-right font-medium text-blue-600 dark:text-blue-400">
-                                        {row.cashFlow.rothConversion > 0 ? formatCurrency(getValue(row.cashFlow.rothConversion, row.inflationAdjustmentFactor)) : <span className="opacity-20">—</span>}
+                                        {row.cashFlow.rothConversion > 0 ? formatCurrency(row.cashFlow.rothConversion) : <span className="opacity-20">—</span>}
                                     </TableCell>
                                     <TableCell className="text-right">
                                         {row.cashFlow.taxGainHarvesting > 0 ? (
                                             <div className="text-blue-600 dark:text-blue-400 font-black">
-                                                +{formatCurrency(getValue(row.cashFlow.taxGainHarvesting, row.inflationAdjustmentFactor))}
+                                                +{formatCurrency(row.cashFlow.taxGainHarvesting)}
                                             </div>
                                         ) : (
                                             <span className="text-muted-foreground opacity-20">—</span>
                                         )}
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <div className="font-bold">{formatCurrency(getValue(row.cashFlow.taxes, row.inflationAdjustmentFactor))}</div>
+                                        <div className="font-bold">{formatCurrency(row.cashFlow.taxes)}</div>
                                         <div className="text-[9px] text-muted-foreground flex flex-col items-end opacity-80 leading-tight">
                                             <div>Fed: {formatCurrency(row.cashFlow.taxDetails.federal)}</div>
                                             <div>State: {formatCurrency(row.cashFlow.taxDetails.state)}</div>

@@ -19,7 +19,7 @@ export function ScenarioSidebar({ isExpanded, onToggle }: { isExpanded: boolean,
                     <div className="flex items-center justify-between">
                         {isExpanded && (
                             <h1 className="font-mono text-base font-black leading-tight tracking-tighter text-primary uppercase =flex-1">
-                                Actually Good Retirement Calculator
+                                Actually Good Financial Calculator
                             </h1>
                         )}
                         <Button

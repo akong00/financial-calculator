@@ -32,7 +32,7 @@ export interface SimLiability {
 
 export interface SimIncomeStream {
     name: string;
-    type: 'social_security' | 'ordinary' | 'capital_gains' | 'tax_free';
+    type: 'salary' | 'social_security' | 'pension' | 'rental' | 'side_hustle' | 'inheritance' | 'other';
     amount: number;
     startAge: number | string;
     endAge?: number | string;
@@ -294,6 +294,9 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
         let safeYearIdx = Math.max(0, year - params.startYear);
         const market = params.marketReturns[safeYearIdx] || { stockReturn: 0.07, bondReturn: 0.03, cashReturn: 0.01, inflation: 0.03, propertyReturn: 0.03 };
 
+        const yearData = scaleTaxConstants(TAX_DATA_2025, inflationAccumulator);
+        const standardDeduction = yearData.standardDeduction[params.tax.filingStatus];
+
         const liquidPortfolioValue = currentPortfolio.taxable + currentPortfolio.preTax + currentPortfolio.roth + currentPortfolio.cash;
 
         // 0. Resolve Milestones
@@ -396,6 +399,7 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
         let grossCapital = 0;
         let grossTaxFree = 0;
         let ssAmount = 0;
+        let totalEarnedIncome = 0;
 
         params.incomeStreams.forEach(inc => {
             const startAge = resolveAge(inc.startAge, 0, resolvedMilestones);
@@ -411,6 +415,9 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
                 if (inc.type === 'social_security') {
                     ssAmount += amt; // Track separately for SS taxation
                 } else {
+                    if (inc.type === 'salary' || inc.type === 'side_hustle') {
+                        totalEarnedIncome += amt;
+                    }
                     if (inc.taxType === 'ordinary') grossOrdinary += amt;
                     else if (inc.taxType === 'capital_gains') grossCapital += amt;
                     else grossTaxFree += amt;
@@ -441,22 +448,43 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
 
         // 6. PRE-TAX Traditional 401k Contribution (happens BEFORE tax calculation)
         let trad401kContribution = 0;
-        if (params.savingsAllocation.trad401k && initialGap < 0) {
+        if (params.savingsAllocation.trad401k && initialGap < 0 && totalEarnedIncome > 0) {
             // We have surplus, allocate to traditional 401k (reduces taxable income)
             const availableSurplus = -initialGap;
             const maxContribution = Math.min(
                 limits.employeeDeferral,
-                availableSurplus
+                availableSurplus,
+                totalEarnedIncome // Restricted to earned income
             );
             trad401kContribution = maxContribution;
             currentPortfolio.preTax += trad401kContribution;
             grossOrdinary -= trad401kContribution; // CRITICAL: Reduce taxable income
         }
 
-        // 7. Simplified tax estimation (for pre-tax contribution decision)
-        // Note: Full final tax calculation happens after Roth conversions below
-        const estimatedTaxRate = 0.22; // Rough middle-class estimate for quick calculation
-        const estimatedTax = Math.max(0, (grossIncome - trad401kContribution) * estimatedTaxRate);
+        // 7. Improved tax estimation
+        // This estimate helps decide if we need to withdraw more to cover taxes.
+        // We use the actual tax calculation on CURRENT known income (Salary, RMD, SS, etc.)
+        const prelimProvisionalIncome = grossOrdinary + (grossCapital * 0.5) + (ssAmount * 0.5);
+        let estTaxableSS = 0;
+        if (params.tax.filingStatus === 'single') {
+            if (prelimProvisionalIncome > 34000) estTaxableSS = Math.min(ssAmount * 0.85, ssAmount);
+            else if (prelimProvisionalIncome > 25000) estTaxableSS = Math.min(ssAmount * 0.50, ssAmount);
+        } else {
+            if (prelimProvisionalIncome > 44000) estTaxableSS = Math.min(ssAmount * 0.85, ssAmount);
+            else if (prelimProvisionalIncome > 32000) estTaxableSS = Math.min(ssAmount * 0.50, ssAmount);
+        }
+
+        const estTaxRes = calculateFederalTax({
+            wages: totalEarnedIncome,
+            shortTermCapGains: 0,
+            longTermCapGains: grossCapital,
+            qualifiedDividends: 0,
+            otherOrdinaryIncome: (grossOrdinary - totalEarnedIncome) + estTaxableSS,
+            preTaxContributions: trad401kContribution,
+            filingStatus: params.tax.filingStatus
+        }, yearData);
+
+        const estimatedTax = estTaxRes.totalTax + calculateStateTax(estTaxRes.incomeSummary.agi, params.tax.state || 'none');
 
         // 8. Calculate after-tax cash flow
         const afterTaxIncome = grossIncome - trad401kContribution - estimatedTax;
@@ -464,6 +492,7 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
 
         // 9. Handle POST-TAX surplus or deficit
         const withdrawals = { taxable: 0, preTax: 0, roth: 0, cash: 0, total: 0 };
+        let currentYearSurplus = 0;
         let megaBackdoorContribution = 0;
         let rothContribution = 0;
         let brokerageContribution = 0;
@@ -511,37 +540,9 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
             if (remaining > 0.01) {
                 portfolioExhausted = true;
             }
-        } else if (!portfolioExhausted) {
-            // SURPLUS: Allocate to POST-TAX accounts
-            let surplus = -postTaxGap;
-
-            // Calculate room for mega backdoor
-            const totalRoomUsed = trad401kContribution + employerMatchAmount;
-            const megaBackdoorRoom = Math.max(0, limits.total - totalRoomUsed);
-
-            // Calculate room for regular Roth (shares employee deferral limit with trad 401k)
-            const rothRoom = Math.max(0, limits.employeeDeferral - trad401kContribution);
-
-            // Mega Backdoor Roth (after-tax contribution within overall 401k limit)
-            if (params.savingsAllocation.megaBackdoorRoth && surplus > 0) {
-                megaBackdoorContribution = Math.min(megaBackdoorRoom, surplus);
-                currentPortfolio.roth += megaBackdoorContribution;
-                surplus -= megaBackdoorContribution;
-            }
-
-            // Regular Roth (if not maxed on employee deferral)
-            if (params.savingsAllocation.roth && surplus > 0) {
-                rothContribution = Math.min(rothRoom, surplus);
-                currentPortfolio.roth += rothContribution;
-                surplus -= rothContribution;
-            }
-
-            // Brokerage (catch-all for remaining surplus)
-            if (surplus > 0) {
-                brokerageContribution = surplus;
-                currentPortfolio.taxable += brokerageContribution;
-                currentPortfolio.taxableBasis += brokerageContribution; // Full basis for new contributions
-            }
+        } else {
+            // SURPLUS: Keep it as liquid buffer for now, allocate after final taxes
+            currentYearSurplus = -postTaxGap;
         }
 
         // Calculate derived values needed for Roth conversion and tax gain harvesting
@@ -561,11 +562,9 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
         }
 
         const preliminaryOrdinaryIncome = grossOrdinary + withdrawals.preTax + taxableSS;
-        const yearData = scaleTaxConstants(TAX_DATA_2025, inflationAccumulator);
-        const deduction = yearData.standardDeduction[params.tax.filingStatus];
-        const initialTaxableOrdinary = Math.max(0, preliminaryOrdinaryIncome - deduction);
+        const initialTaxableOrdinary = Math.max(0, preliminaryOrdinaryIncome - standardDeduction);
 
-        // --- Roth Conversion and Tax Gain Harvesting (Optional Strategies) ---
+        // 10. Optional Strategies (Roth Conversion & Tax Gain Harvesting)
         let rothConversionAmount = 0;
         let taxGainHarvestingAmount = 0;
 
@@ -580,7 +579,7 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
                     const targetRate = rothConfig.targetBracketRate ?? 0;
                     if (targetRate < 0.01) {
                         // Target: Standard Deduction boundary (0% taxable ordinary)
-                        room = Math.max(0, deduction - preliminaryOrdinaryIncome);
+                        room = Math.max(0, standardDeduction - preliminaryOrdinaryIncome);
                     } else {
                         const brackets = yearData.brackets[params.tax.filingStatus];
                         const targetBracket = brackets.find(b => b.rate <= targetRate + 0.001 && (brackets[brackets.indexOf(b) + 1]?.rate > targetRate + 0.001 || !brackets[brackets.indexOf(b) + 1])) || brackets[0];
@@ -605,10 +604,9 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
             }
         }
 
-        // Tax Gain Harvesting
         if (params.strategy.enableTaxGainHarvesting && currentPortfolio.taxable > 0) {
             const ltcgLimit = yearData.longTermCapGains[params.tax.filingStatus][0].limit;
-            const currentTaxableOrdinary = Math.max(0, preliminaryOrdinaryIncome + rothConversionAmount - deduction);
+            const currentTaxableOrdinary = Math.max(0, preliminaryOrdinaryIncome + rothConversionAmount - standardDeduction);
             const currentLTCG = taxableGain + grossCapital;
 
             // Stack: Ordinary -> LTCG. Harvesting fills remaining room in 0% bracket.
@@ -621,7 +619,7 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
             }
         }
 
-        // 7. Final Tax Calculation
+        // 11. Final Tax Calculation
         const finalTaxInput: any = {
             wages: 0,
             shortTermCapGains: 0,
@@ -642,31 +640,109 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
 
         const totalTax = taxRes.totalTax + stateTax + healthcareSurcharges;
 
-        // 8. Pay Taxes
-        let taxRemaining = totalTax;
-        if (currentPortfolio.cash >= taxRemaining) {
-            currentPortfolio.cash -= taxRemaining;
-            taxRemaining = 0;
-        } else {
-            taxRemaining -= currentPortfolio.cash; currentPortfolio.cash = 0;
-            if (currentPortfolio.taxable >= taxRemaining) {
-                const take = taxRemaining;
-                const basisFrac = currentPortfolio.taxableBasis / currentPortfolio.taxable;
-                currentPortfolio.taxable -= take;
-                currentPortfolio.taxableBasis -= (take * basisFrac);
-                taxRemaining = 0;
-            } else {
-                taxRemaining -= currentPortfolio.taxable; currentPortfolio.taxable = 0; currentPortfolio.taxableBasis = 0;
-                if (currentPortfolio.preTax >= taxRemaining) {
-                    currentPortfolio.preTax -= taxRemaining; taxRemaining = 0;
+        // 12. Pay Taxes (Settling Difference from Estimate)
+        const taxDelta = totalTax - estimatedTax;
+        if (taxDelta > 0) {
+            // We owe more than estimated. Use current year surplus first.
+            const useFromSurplus = Math.min(currentYearSurplus, taxDelta);
+            currentYearSurplus -= useFromSurplus;
+            let taxRemaining = taxDelta - useFromSurplus;
+
+            if (taxRemaining > 0.01) {
+                // Buffer exhausted, must withdraw from portfolio
+                if (currentPortfolio.cash >= taxRemaining) {
+                    currentPortfolio.cash -= taxRemaining;
+                    withdrawals.cash += taxRemaining;
+                    withdrawals.total += taxRemaining;
+                    taxRemaining = 0;
                 } else {
-                    taxRemaining -= currentPortfolio.preTax; currentPortfolio.preTax = 0;
-                    currentPortfolio.roth = Math.max(0, currentPortfolio.roth - taxRemaining);
+                    const cashTaken = currentPortfolio.cash;
+                    withdrawals.cash += cashTaken;
+                    withdrawals.total += cashTaken;
+                    taxRemaining -= cashTaken;
+                    currentPortfolio.cash = 0;
+
+                    if (currentPortfolio.taxable >= taxRemaining) {
+                        const take = taxRemaining;
+                        const basisFrac = currentPortfolio.taxableBasis / currentPortfolio.taxable;
+                        currentPortfolio.taxable -= take;
+                        currentPortfolio.taxableBasis -= (take * basisFrac);
+                        withdrawals.taxable += take;
+                        withdrawals.total += take;
+                        taxRemaining = 0;
+                    } else {
+                        const taxableTaken = currentPortfolio.taxable;
+                        withdrawals.taxable += taxableTaken;
+                        withdrawals.total += taxableTaken;
+                        taxRemaining -= taxableTaken;
+                        currentPortfolio.taxable = 0;
+                        currentPortfolio.taxableBasis = 0;
+
+                        if (currentPortfolio.preTax >= taxRemaining) {
+                            const take = taxRemaining;
+                            currentPortfolio.preTax -= take;
+                            withdrawals.preTax += take;
+                            withdrawals.total += take;
+                            taxRemaining = 0;
+                        } else {
+                            const preTaxTaken = currentPortfolio.preTax;
+                            withdrawals.preTax += preTaxTaken;
+                            withdrawals.total += preTaxTaken;
+                            taxRemaining -= preTaxTaken;
+                            currentPortfolio.preTax = 0;
+
+                            const rothTaken = Math.min(currentPortfolio.roth, taxRemaining);
+                            currentPortfolio.roth -= rothTaken;
+                            withdrawals.roth += rothTaken;
+                            withdrawals.total += rothTaken;
+                            taxRemaining -= rothTaken;
+                        }
+                    }
                 }
+            }
+        } else if (taxDelta < 0) {
+            // We owe less than estimated, increase available surplus
+            currentYearSurplus += Math.abs(taxDelta);
+        }
+
+        // 13. Allocate Final Surplus (Savings)
+        if (currentYearSurplus > 0 && !portfolioExhausted) {
+            let surplus = currentYearSurplus;
+
+            // Calculate room for mega backdoor
+            const totalRoomUsed = trad401kContribution + employerMatchAmount;
+            const megaBackdoorRoom = Math.max(0, limits.total - totalRoomUsed);
+
+            // Calculate room for regular Roth (shares employee deferral limit with trad 401k)
+            const rothRoom = Math.max(0, limits.employeeDeferral - trad401kContribution);
+
+            // Calculate remaining earned income room for Roth buckets
+            const remainingEarnedIncome = Math.max(0, totalEarnedIncome - trad401kContribution);
+
+            // Mega Backdoor Roth
+            if (params.savingsAllocation.megaBackdoorRoth && surplus > 0 && remainingEarnedIncome > 0) {
+                megaBackdoorContribution = Math.min(megaBackdoorRoom, surplus, remainingEarnedIncome);
+                currentPortfolio.roth += megaBackdoorContribution;
+                surplus -= megaBackdoorContribution;
+            }
+
+            // Regular Roth
+            const rothEarnedIncomeRemaining = Math.max(0, totalEarnedIncome - trad401kContribution - megaBackdoorContribution);
+            if (params.savingsAllocation.roth && surplus > 0 && rothEarnedIncomeRemaining > 0) {
+                rothContribution = Math.min(rothRoom, surplus, rothEarnedIncomeRemaining);
+                currentPortfolio.roth += rothContribution;
+                surplus -= rothContribution;
+            }
+
+            // Brokerage (catch-all for remaining surplus)
+            if (surplus > 0) {
+                brokerageContribution = surplus;
+                currentPortfolio.taxable += brokerageContribution;
+                currentPortfolio.taxableBasis += brokerageContribution;
             }
         }
 
-        // 9. Update Debts
+        // 14. Update Debts
         let totalDebt = 0;
         currentLiabilities.forEach(l => {
             l.balance = Math.max(0, l.balance - l.minPayment);
@@ -674,7 +750,7 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
             totalDebt += l.balance;
         });
 
-        // 10. Market Growth (End of Year)
+        // 15. Market Growth (End of Year)
         currentPortfolio.taxable *= (1 + market.stockReturn);
         currentPortfolio.preTax *= (1 + market.stockReturn);
         currentPortfolio.roth *= (1 + market.stockReturn);
@@ -683,11 +759,7 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
         // Property Growth
         currentPortfolio.property *= (1 + market.propertyReturn);
 
-        // 11. Inflation Step
-        inflationAccumulator *= (1 + market.inflation);
-        currentAge++;
-
-        // Result Record
+        // 16. Record Result
         results.push({
             year,
             age: currentAge,
@@ -695,10 +767,10 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
             netWorth: currentPortfolio.taxable + (currentPortfolio.preTax * preTaxDiscountFactor) + currentPortfolio.roth + currentPortfolio.cash + currentPortfolio.property - totalDebt,
             totalDebt,
             cashFlow: {
-                totalExpenses: totalOutflow + taxRes.totalTax,
+                totalExpenses: totalOutflow + totalTax,
                 spending: spendingNeeded,
                 debtPayments,
-                taxes: taxRes.totalTax,
+                taxes: totalTax,
                 income: {
                     gross: originalGrossOrdinary + originalGrossCapital + originalGrossTaxFree + originalSsAmount + rothConversionAmount,
                     ss: originalSsAmount,
@@ -713,7 +785,7 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
                     taxable: brokerageContribution,
                     roth: rothContribution + megaBackdoorContribution,
                     preTax: trad401kContribution,
-                    cash: Math.max(0, -postTaxGap - brokerageContribution - rothContribution - megaBackdoorContribution) // Remaining surplus stays in cash if not allocated elsewhere
+                    cash: Math.max(0, currentYearSurplus - brokerageContribution - rothContribution - megaBackdoorContribution) // Remaining final surplus stays in cash
                 }
             },
             taxDetails: {
@@ -727,6 +799,10 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
             },
             inflationAdjustmentFactor: inflationAccumulator
         });
+
+        // 11. Inflation Step (Advance for NEXT year)
+        inflationAccumulator *= (1 + market.inflation);
+        currentAge++;
     }
 
     return { results, resolvedMilestones };
