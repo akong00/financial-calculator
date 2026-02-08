@@ -11,11 +11,17 @@ export type MonteCarloDistributionType = 'historical' | 'custom';
 
 export type AssetType = 'savings' | 'taxable' | 'traditional' | 'roth' | 'property' | 'other';
 
-export interface MilestoneCondition {
-    type: 'portfolio_percent_greater_than_value';
-    portfolioPercent: number; // e.g. 4
-    targetValue: number; // inflation adjusted
-}
+export type MilestoneCondition =
+    | {
+        type: 'portfolio_percent_greater_than_value';
+        portfolioPercent: number; // e.g. 4
+        targetValue: number; // inflation adjusted
+    }
+    | {
+        type: 'offset_from_milestone';
+        baseMilestoneId: string;
+        offsetYears: number; // can be negative (e.g., -2 = "2 years before")
+    };
 
 export interface Milestone {
     id: string;

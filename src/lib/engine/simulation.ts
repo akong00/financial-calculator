@@ -298,6 +298,14 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
                     if (safeWithdrawalAmount >= m.condition.targetValue * inflationAccumulator) {
                         resolvedMilestones[m.id] = currentAge;
                     }
+                } else if (m.condition.type === 'offset_from_milestone') {
+                    const baseAge = resolvedMilestones[m.condition.baseMilestoneId];
+                    if (baseAge !== undefined) {
+                        const targetAge = baseAge + m.condition.offsetYears;
+                        if (currentAge >= targetAge) {
+                            resolvedMilestones[m.id] = targetAge;
+                        }
+                    }
                 }
             }
         });
