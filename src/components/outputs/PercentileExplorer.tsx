@@ -32,7 +32,48 @@ interface PercentileExplorerProps {
     className?: string;
 }
 
-export function PercentileExplorer({ sampleSimulations, isReal, className = "" }: PercentileExplorerProps) {
+// --- Pure Utility Functions ---
+const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+};
+
+const getAgnosticValue = (val: number, isReal: boolean, inflationFactor: number = 1.0) => {
+    return isReal ? val / (inflationFactor || 1) : val;
+};
+
+// --- Stable Sub-Components ---
+const ChartTooltip = ({ active, payload, label, titleFormatter = (val: any) => `Age ${val}` }: any) => {
+    if (active && payload && payload.length) {
+        const items = [...payload].filter(p => p.name && !p.name.includes('range'));
+        return (
+            <div className="bg-background opacity-100 border-2 border-primary/20 rounded-xl p-3 shadow-2xl z-50">
+                <p className="font-black text-xs mb-2 text-foreground uppercase tracking-widest border-b border-primary/10 pb-1.5 leading-none">
+                    {titleFormatter(label)}
+                </p>
+                <div className="space-y-2">
+                    {items.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-6 text-[11px]">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2.5 h-2.5 rounded-[2px]" style={{ backgroundColor: item.color }} />
+                                <span className="text-muted-foreground font-bold whitespace-nowrap">
+                                    {item.name}:
+                                </span>
+                            </div>
+                            <span className="font-black text-foreground font-mono">
+                                {typeof item.value === 'number'
+                                    ? (item.name === 'Stock Index' ? `${item.value.toFixed(2)}x` : formatCurrency(item.value))
+                                    : item.value}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+    return null;
+};
+
+export const PercentileExplorer = React.memo(({ sampleSimulations, isReal, className = "" }: PercentileExplorerProps) => {
     const [selectedPercentile, setSelectedPercentile] = React.useState(50);
 
     // Find the closest available sample simulation to the selected percentile
@@ -53,13 +94,9 @@ export function PercentileExplorer({ sampleSimulations, isReal, className = "" }
         return closest;
     }, [sampleSimulations, selectedPercentile]);
 
-    const formatCurrency = (val: number) => {
-        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
-    };
-
-    const getValue = (val: number, inflationFactor: number = 1.0) => {
-        return isReal ? val / (inflationFactor || 1) : val;
-    };
+    const getValue = React.useCallback((val: number, inflationFactor: number = 1.0) => {
+        return getAgnosticValue(val, isReal, inflationFactor);
+    }, [isReal]);
 
     // Transform results for display
     const transformedResults = React.useMemo(() => {
@@ -128,36 +165,6 @@ export function PercentileExplorer({ sampleSimulations, isReal, className = "" }
         return [startAge, endAge];
     }, [selectedSample, marketIndexData, transformedResults]);
 
-    const ChartTooltip = ({ active, payload, label, titleFormatter = (val: any) => `Age ${val}` }: any) => {
-        if (active && payload && payload.length) {
-            const items = [...payload].filter(p => p.name && !p.name.includes('range'));
-            return (
-                <div className="bg-background opacity-100 border-2 border-primary/20 rounded-xl p-3 shadow-2xl z-50">
-                    <p className="font-black text-xs mb-2 text-foreground uppercase tracking-widest border-b border-primary/10 pb-1.5 leading-none">
-                        {titleFormatter(label)}
-                    </p>
-                    <div className="space-y-2">
-                        {items.map((item, idx) => (
-                            <div key={idx} className="flex items-center justify-between gap-6 text-[11px]">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-2.5 h-2.5 rounded-[2px]" style={{ backgroundColor: item.color }} />
-                                    <span className="text-muted-foreground font-bold whitespace-nowrap">
-                                        {item.name}:
-                                    </span>
-                                </div>
-                                <span className="font-black text-foreground font-mono">
-                                    {typeof item.value === 'number'
-                                        ? (item.name === 'Stock Index' ? `${item.value.toFixed(2)}x` : formatCurrency(item.value))
-                                        : item.value}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            );
-        }
-        return null;
-    };
 
     if (!selectedSample) {
         return (
@@ -407,4 +414,5 @@ export function PercentileExplorer({ sampleSimulations, isReal, className = "" }
             </CardContent>
         </Card>
     );
-}
+});
+PercentileExplorer.displayName = "PercentileExplorer";

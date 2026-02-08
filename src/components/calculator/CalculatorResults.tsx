@@ -44,6 +44,108 @@ interface CalculatorResultsProps {
     preTaxDiscount?: number;
 }
 
+// --- Pure Utility Functions ---
+const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+}
+
+const formatPercent = (val: number) => {
+    return `${(val * 100).toFixed(1)}%`;
+}
+
+const getAgnosticValue = (val: number, isReal: boolean, inflationFactor: number = 1.0) => {
+    return isReal ? val / (inflationFactor || 1) : val;
+}
+
+// --- Stable Sub-Components ---
+
+const LazyAccordionContent = React.memo(({ isOpen, children, className }: { isOpen: boolean, children: React.ReactNode, className?: string }) => {
+    const [hasBeenOpened, setHasBeenOpened] = React.useState(isOpen);
+
+    React.useEffect(() => {
+        if (isOpen && !hasBeenOpened) {
+            setHasBeenOpened(true);
+        }
+    }, [isOpen, hasBeenOpened]);
+
+    return (
+        <AccordionContent isOpen={isOpen} className={className}>
+            {hasBeenOpened ? children : <div className="h-20" />}
+        </AccordionContent>
+    );
+});
+LazyAccordionContent.displayName = "LazyAccordionContent";
+
+// Unified Theme-Consistent Tooltip
+const ChartTooltip = ({ active, payload, label, titleFormatter = (val: any) => `Year ${val}`, itemSorter, isReal }: any) => {
+    if (active && payload && payload.length) {
+        let items = [...payload].filter(p => p.name && !p.name.includes('range'));
+        if (typeof itemSorter === 'function') {
+            items = items.sort(itemSorter);
+        }
+
+        const dataPoint = payload[0].payload;
+        const strategyName = dataPoint?.strategyName;
+
+        return (
+            <div className="bg-background opacity-100 border-2 border-primary/20 rounded-xl p-3 shadow-2xl z-50">
+                <p className="font-black text-xs mb-2 text-foreground uppercase tracking-widest border-b border-primary/10 pb-1.5 leading-none">
+                    {strategyName || titleFormatter(label)}
+                </p>
+                <div className="space-y-2">
+                    {items.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-6 text-[11px]">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2.5 h-2.5 rounded-[2px]" style={{ backgroundColor: item.color }} />
+                                <span className="text-muted-foreground font-bold whitespace-nowrap">
+                                    {item.name === 'successRate' ? 'Success Rate' : item.name}:
+                                </span>
+                            </div>
+                            <span className="font-black text-foreground font-mono">
+                                {typeof item.value === 'number' && (item.name?.includes('Rate') || item.name === 'successRate')
+                                    ? formatPercent(item.value)
+                                    : typeof item.value === 'number'
+                                        ? (titleFormatter('').includes('Simulation Sample')
+                                            ? `${item.value.toFixed(2)}x`
+                                            : formatCurrency(item.value))
+                                        : item.value}
+                            </span>
+                        </div>
+                    ))}
+                    {/* Special case for Taxes Paid breakdown */}
+                    {dataPoint?.cashFlow?.taxDetails && (
+                        <div className="pt-2 mt-2 border-t border-primary/10 space-y-1">
+                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Tax Breakdown</p>
+                            <div className="flex justify-between gap-4 text-[10px]">
+                                <span className="text-muted-foreground font-bold">Federal:</span>
+                                <span className="font-mono text-foreground">{formatCurrency(dataPoint.cashFlow.taxDetails.federal)}</span>
+                            </div>
+                            <div className="flex justify-between gap-4 text-[10px]">
+                                <span className="text-muted-foreground font-bold">State:</span>
+                                <span className="font-mono text-foreground">{formatCurrency(dataPoint.cashFlow.taxDetails.state)}</span>
+                            </div>
+                            <div className="flex justify-between gap-4 text-[10px]">
+                                <span className="text-muted-foreground font-bold">Medicare Premiums:</span>
+                                <span className="font-mono text-foreground">{formatCurrency(dataPoint.cashFlow.taxDetails.medicare)}</span>
+                            </div>
+                        </div>
+                    )}
+                    {/* Special case for Roth Strategy Comparison */}
+                    {dataPoint?.medianNetWorth !== undefined && (
+                        <div className="flex items-center justify-between gap-6 text-[11px] pt-1 mt-1 border-t border-primary/10">
+                            <span className="text-muted-foreground font-bold">Median Net Worth:</span>
+                            <span className="font-black text-foreground font-mono">
+                                {formatCurrency(getAgnosticValue(dataPoint.medianNetWorth, !!isReal, 1))}
+                            </span>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+    return null;
+};
+
 export function CalculatorResults({
     singleRunResults,
     monteCarloResults,
@@ -55,17 +157,17 @@ export function CalculatorResults({
     const [isReal, setIsReal] = React.useState(true);
     const [openSections, setOpenSections] = React.useState<string[]>(['metrics', 'mc_chart', 'cash_flow', 'assets', 'milestones']);
 
-    const toggleSections = (section: string) => {
+    const toggleSections = React.useCallback((section: string) => {
         setOpenSections(prev =>
             prev.includes(section)
                 ? prev.filter(s => s !== section)
                 : [...prev, section]
         );
-    };
+    }, []);
 
-    const getValue = (val: number, inflationFactor: number = 1.0) => {
-        return isReal ? val / (inflationFactor || 1) : val;
-    }
+    const getValue = React.useCallback((val: number, inflationFactor: number = 1.0) => {
+        return getAgnosticValue(val, isReal, inflationFactor);
+    }, [isReal]);
 
     const transformedResults = React.useMemo(() => {
         if (!singleRunResults) return [];
@@ -118,7 +220,7 @@ export function CalculatorResults({
                 }
             };
         });
-    }, [singleRunResults, isReal]);
+    }, [singleRunResults, isReal, getValue]);
 
     const transformedMC = React.useMemo(() => {
         if (!monteCarloResults) return undefined;
@@ -147,83 +249,6 @@ export function CalculatorResults({
         };
     }, [monteCarloResults, isReal]);
 
-    const formatCurrency = (val: number) => {
-        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
-    }
-
-    const formatPercent = (val: number) => {
-        return `${(val * 100).toFixed(1)}%`;
-    }
-
-    // Unified Theme-Consistent Tooltip
-    const ChartTooltip = ({ active, payload, label, titleFormatter = (val: any) => `Year ${val}`, itemSorter }: any) => {
-        if (active && payload && payload.length) {
-            let items = [...payload].filter(p => p.name && !p.name.includes('range'));
-            if (typeof itemSorter === 'function') {
-                items = items.sort(itemSorter);
-            }
-
-            const dataPoint = payload[0].payload;
-            const strategyName = dataPoint?.strategyName;
-
-            return (
-                <div className="bg-background opacity-100 border-2 border-primary/20 rounded-xl p-3 shadow-2xl z-50">
-                    <p className="font-black text-xs mb-2 text-foreground uppercase tracking-widest border-b border-primary/10 pb-1.5 leading-none">
-                        {strategyName || titleFormatter(label)}
-                    </p>
-                    <div className="space-y-2">
-                        {items.map((item, idx) => (
-                            <div key={idx} className="flex items-center justify-between gap-6 text-[11px]">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-2.5 h-2.5 rounded-[2px]" style={{ backgroundColor: item.color }} />
-                                    <span className="text-muted-foreground font-bold whitespace-nowrap">
-                                        {item.name === 'successRate' ? 'Success Rate' : item.name}:
-                                    </span>
-                                </div>
-                                <span className="font-black text-foreground font-mono">
-                                    {typeof item.value === 'number' && (item.name?.includes('Rate') || item.name === 'successRate')
-                                        ? formatPercent(item.value)
-                                        : typeof item.value === 'number'
-                                            ? (titleFormatter('').includes('Simulation Sample')
-                                                ? `${item.value.toFixed(2)}x`
-                                                : formatCurrency(item.value))
-                                            : item.value}
-                                </span>
-                            </div>
-                        ))}
-                        {/* Special case for Taxes Paid breakdown */}
-                        {dataPoint?.cashFlow?.taxDetails && (
-                            <div className="pt-2 mt-2 border-t border-primary/10 space-y-1">
-                                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Tax Breakdown</p>
-                                <div className="flex justify-between gap-4 text-[10px]">
-                                    <span className="text-muted-foreground font-bold">Federal:</span>
-                                    <span className="font-mono text-foreground">{formatCurrency(dataPoint.cashFlow.taxDetails.federal)}</span>
-                                </div>
-                                <div className="flex justify-between gap-4 text-[10px]">
-                                    <span className="text-muted-foreground font-bold">State:</span>
-                                    <span className="font-mono text-foreground">{formatCurrency(dataPoint.cashFlow.taxDetails.state)}</span>
-                                </div>
-                                <div className="flex justify-between gap-4 text-[10px]">
-                                    <span className="text-muted-foreground font-bold">Medicare Premiums:</span>
-                                    <span className="font-mono text-foreground">{formatCurrency(dataPoint.cashFlow.taxDetails.medicare)}</span>
-                                </div>
-                            </div>
-                        )}
-                        {/* Special case for Roth Strategy Comparison */}
-                        {dataPoint?.medianNetWorth !== undefined && (
-                            <div className="flex items-center justify-between gap-6 text-[11px] pt-1 mt-1 border-t border-primary/10">
-                                <span className="text-muted-foreground font-bold">Median Net Worth:</span>
-                                <span className="font-black text-foreground font-mono">
-                                    {formatCurrency(getValue(dataPoint.medianNetWorth, 1))}
-                                </span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        }
-        return null;
-    };
 
     if (!singleRunResults || singleRunResults.length === 0) {
         return (
@@ -258,118 +283,20 @@ export function CalculatorResults({
                         >
                             <span>📊 Key Simulation Metrics</span>
                         </AccordionTrigger>
-                        <AccordionContent isOpen={openSections.includes('metrics')}>
-                            <div className="border border-primary/20 border-t-0 p-4 rounded-b-lg bg-background/40 -mt-px">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <Card>
-                                        <CardHeader className="pb-2">
-                                            <CardTitle className="text-sm font-medium">Ending Roth-eq Net Worth ({isReal ? 'Real' : 'Nominal'})</CardTitle>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <div className="min-w-fit">
-                                                <div className="text-xl sm:text-2xl font-bold text-primary">
-                                                    {monteCarloResults
-                                                        ? formatCurrency(isReal ? monteCarloResults.medianEndingWealth : monteCarloResults.medianEndingWealthNominal)
-                                                        : '--'}
-                                                </div>
-                                                <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
-                                                    Median (Monte Carlo)
-                                                </p>
-                                            </div>
-                                            <p className="pt-2 text-xs text-muted-foreground">
-                                                At age {lastResult.age} (Year {lastResult.year})
-                                            </p>
-                                        </CardContent>
-                                    </Card>
-                                    <Card>
-                                        <CardHeader className="pb-2">
-                                            <CardTitle className="text-sm font-medium">Success Probability</CardTitle>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <div className="flex flex-wrap items-center justify-between gap-1 sm:gap-2">
-                                                <div className="min-w-fit">
-                                                    <div className="text-xl sm:text-2xl font-bold">
-                                                        {monteCarloResults ? `${(monteCarloResults.successRate * 100).toFixed(1)}%` : '--'}
-                                                    </div>
-                                                    <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
-                                                        Monte Carlo
-                                                    </p>
-                                                </div>
-                                                <div className="h-6 sm:h-8 w-px bg-border mx-0.5 sm:mx-1" />
-                                                <div className="text-right min-w-fit">
-                                                    <div className={`text-xl sm:text-2xl font-bold ${historicalResults ? (historicalResults.successRate === 1 ? 'text-green-600' : 'text-primary') : ''}`}>
-                                                        {historicalResults ? `${(historicalResults.successRate * 100).toFixed(1)}%` : '--'}
-                                                    </div>
-                                                    <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
-                                                        Historical
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <p className="pt-2 text-[10px] text-muted-foreground font-bold">
-                                                Chance of not running out of money
-                                            </p>
-                                        </CardContent>
-                                    </Card>
-                                    <Card>
-                                        <CardHeader className="pb-2">
-                                            <CardTitle className="text-sm font-medium">Spending & Taxes ({isReal ? 'Real' : 'Nominal'})</CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="space-y-4">
-                                            <div>
-                                                <div className="text-xl sm:text-2xl font-bold">
-                                                    {monteCarloResults
-                                                        ? formatCurrency(isReal ? monteCarloResults.medianTotalSpent : monteCarloResults.medianTotalSpentNominal)
-                                                        : '--'}
-                                                </div>
-                                                <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
-                                                    Median Total Money Spent
-                                                </p>
-                                            </div>
-                                            <div className="flex justify-between items-end gap-2">
-                                                <div>
-                                                    <div className="text-lg font-bold">
-                                                        {monteCarloResults
-                                                            ? formatCurrency(isReal ? monteCarloResults.medianAnnualSpending : monteCarloResults.medianAnnualSpendingNominal)
-                                                            : '--'}
-                                                    </div>
-                                                    <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
-                                                        Median Annual Spending
-                                                    </p>
-                                                </div>
-                                                <div className="text-right group relative">
-                                                    <div className="text-lg font-bold">
-                                                        {formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.cashFlow.taxes, curr.inflationAdjustmentFactor), 0))}
-                                                    </div>
-                                                    <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
-                                                        Total Taxes Paid
-                                                    </p>
-                                                    {/* Tooltip explaining the total */}
-                                                    <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block bg-background border border-primary/20 rounded p-2 shadow-xl z-50 text-[10px] whitespace-nowrap">
-                                                        <div className="flex justify-between gap-4">
-                                                            <span>Federal:</span>
-                                                            <strong>{formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.taxDetails.federal, curr.inflationAdjustmentFactor), 0))}</strong>
-                                                        </div>
-                                                        <div className="flex justify-between gap-4">
-                                                            <span>State:</span>
-                                                            <strong>{formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.taxDetails.state, curr.inflationAdjustmentFactor), 0))}</strong>
-                                                        </div>
-                                                        <div className="flex justify-between gap-4">
-                                                            <span>Medicare:</span>
-                                                            <strong>{formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.taxDetails.medicare, curr.inflationAdjustmentFactor), 0))}</strong>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </div>
-                            </div>
-                        </AccordionContent>
+                        <LazyAccordionContent isOpen={openSections.includes('metrics')}>
+                            <KeyMetricsSection
+                                monteCarloResults={monteCarloResults}
+                                singleRunResults={singleRunResults}
+                                historicalResults={historicalResults}
+                                isReal={isReal}
+                                lastResult={lastResult}
+                                formatCurrency={formatCurrency}
+                                getValue={getValue}
+                            />
+                        </LazyAccordionContent>
                     </AccordionItem>
                 </Accordion>
             </div>
-
-
 
             {/* Monte Carlo Chart */}
             {transformedMC && (
@@ -383,52 +310,13 @@ export function CalculatorResults({
                             >
                                 <span>🔮 Monte Carlo Projections (Roth-eq Net Worth)</span>
                             </AccordionTrigger>
-                            <AccordionContent isOpen={openSections.includes('mc_chart')}>
-                                <Card className="rounded-t-none border-primary/20 border-t-0 shadow-sm text-sm -mt-px">
-                                    <CardHeader className="py-3">
-                                        <CardTitle className="text-sm uppercase font-black tracking-tight">Monte Carlo Projections (Roth-eq Net Worth - {isReal ? 'Real' : 'Nominal'})</CardTitle>
-                                        <CardDescription className="text-xs">Range of outcomes ({isReal ? 'Inflation Adjusted' : 'Nominal Dollars'}) - {MC_ITERATIONS} simulations</CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="h-[450px]">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <AreaChart data={transformedMC.unifiedData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                                <CartesianGrid strokeDasharray="3 3" />
-                                                <XAxis dataKey="year" type="number" domain={['dataMin', 'dataMax']} />
-                                                <YAxis tickFormatter={(value) => `$${value / 1000000}M`} />
-                                                <Tooltip
-                                                    wrapperStyle={{ zIndex: 100 }}
-                                                    content={
-                                                        <ChartTooltip
-                                                            itemSorter={(a: any, b: any) => {
-                                                                const order: Record<string, number> = {
-                                                                    "95%": 1,
-                                                                    "75%": 2,
-                                                                    "Median (50%)": 3,
-                                                                    "25%": 4,
-                                                                    "5%": 5
-                                                                };
-                                                                return (order[a.name] || 10) - (order[b.name] || 10);
-                                                            }}
-                                                        />
-                                                    }
-                                                />
-
-                                                {/* Areas - Shaded background regions */}
-                                                <Area type="monotone" dataKey="range75_95" stroke="none" fill="#4ade80" fillOpacity={0.3} tooltipType="none" name="range_95" />
-                                                <Area type="monotone" dataKey="range25_75" stroke="none" fill="#22c55e" fillOpacity={0.25} tooltipType="none" name="range_75" />
-                                                <Area type="monotone" dataKey="range5_25" stroke="none" fill="#ef4444" fillOpacity={0.15} tooltipType="none" name="range_25" />
-
-                                                {/* Trend Lines - Descending order 95 to 5 */}
-                                                <Line dataKey="p95" stroke="#4ade80" strokeDasharray="5 5" dot={false} strokeOpacity={0.9} name="95%" />
-                                                <Line dataKey="p75" stroke="#22c55e" strokeDasharray="3 3" dot={false} strokeOpacity={0.9} name="75%" />
-                                                <Line dataKey="p50" stroke="#6366f1" strokeWidth={3} dot={false} name="Median (50%)" />
-                                                <Line dataKey="p25" stroke="#22c55e" strokeDasharray="3 3" dot={false} strokeOpacity={0.9} name="25%" />
-                                                <Line dataKey="p5" stroke="#ef4444" strokeDasharray="5 5" dot={false} strokeOpacity={0.9} name="5%" />
-                                            </AreaChart>
-                                        </ResponsiveContainer>
-                                    </CardContent>
-                                </Card>
-                            </AccordionContent>
+                            <LazyAccordionContent isOpen={openSections.includes('mc_chart')}>
+                                <MonteCarloChartSection
+                                    transformedMC={transformedMC}
+                                    isReal={isReal}
+                                    ChartTooltip={ChartTooltip}
+                                />
+                            </LazyAccordionContent>
                         </AccordionItem>
                     </Accordion>
                 </div>
@@ -449,13 +337,13 @@ export function CalculatorResults({
                                     <span className="text-muted-foreground">Explore individual outcomes</span>
                                 </div>
                             </AccordionTrigger>
-                            <AccordionContent isOpen={openSections.includes('percentile_explorer')}>
+                            <LazyAccordionContent isOpen={openSections.includes('percentile_explorer')}>
                                 <PercentileExplorer
                                     sampleSimulations={monteCarloResults.sampleSimulations}
                                     isReal={isReal}
                                     className="rounded-t-none border-indigo-500/30 border-t-0 shadow-sm -mt-px"
                                 />
-                            </AccordionContent>
+                            </LazyAccordionContent>
                         </AccordionItem>
                     </Accordion>
                 </div>
@@ -473,66 +361,9 @@ export function CalculatorResults({
                             >
                                 <span>🚩 Milestone Projections</span>
                             </AccordionTrigger>
-                            <AccordionContent isOpen={openSections.includes('milestones')}>
-                                <Card className="max-w-4xl rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
-                                    <CardHeader>
-                                        <CardTitle className="text-xl font-bold flex items-center gap-2">
-                                            <span className="p-1.5 bg-purple-500/10 rounded-lg">🚩</span>
-                                            Milestone Projections
-                                        </CardTitle>
-                                        <CardDescription>
-                                            Statistical estimates of the age when milestones are achieved across {MC_ITERATIONS} simulations.
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="p-0">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow className="bg-muted/30">
-                                                    <TableHead className="font-bold">Milestone</TableHead>
-                                                    <TableHead className="text-right font-bold text-green-600">99%</TableHead>
-                                                    <TableHead className="text-right font-bold text-green-600">95%</TableHead>
-                                                    <TableHead className="text-right font-bold text-green-600">75%</TableHead>
-                                                    <TableHead className="text-right font-bold">50%</TableHead>
-                                                    <TableHead className="text-right font-bold text-red-600">25%</TableHead>
-                                                    <TableHead className="text-right font-bold text-red-600">5%</TableHead>
-                                                    <TableHead className="text-right font-bold text-red-600">1%</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {Object.entries(transformedMC.milestoneStats).map(([id, stats]) => (
-                                                    <TableRow key={id} className="hover:bg-muted/20">
-                                                        <TableCell className="font-bold text-primary">{stats.name}</TableCell>
-                                                        <TableCell className="text-right font-mono font-bold text-green-600">
-                                                            {stats.score99 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score99}
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-mono font-bold text-green-600">
-                                                            {stats.score95 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score95}
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-mono font-bold text-green-600">
-                                                            {stats.score75 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score75}
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-mono font-black text-lg">
-                                                            {stats.score50 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score50}
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-mono font-bold text-red-600">
-                                                            {stats.score25 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score25}
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-mono font-bold text-red-600">
-                                                            {stats.score5 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score5}
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-mono font-bold text-red-600">
-                                                            {stats.score1 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score1}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                        <div className="p-3 text-[10px] text-muted-foreground italic border-t bg-muted/10">
-                                            <strong>Note on Column Meanings:</strong> These percentiles represent your "Performance Score". A <strong>99% Score</strong> means you performed better than 99% of outcomes (achieving the milestone very early). A <strong>1% Score</strong> represents the worst outcome (achieving it very late or not at all).
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </AccordionContent>
+                            <LazyAccordionContent isOpen={openSections.includes('milestones')}>
+                                <MilestoneProjectionsSection transformedMC={transformedMC} />
+                            </LazyAccordionContent>
                         </AccordionItem>
                     </Accordion>
                 </div>
@@ -554,50 +385,9 @@ export function CalculatorResults({
                                     <span className={`font-bold ${historicalResults.successRate > 0.9 ? 'text-green-500' : 'text-red-500'}`}>{(historicalResults.successRate * 100).toFixed(1)}%</span>
                                 </div>
                             </AccordionTrigger>
-                            <AccordionContent isOpen={openSections.includes('historical')}>
-                                <Card className="rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
-                                    <CardHeader className="py-3">
-                                        <CardTitle className="text-sm uppercase font-black tracking-tight">Historical Failures & Worst Cases</CardTitle>
-                                        <CardDescription className="text-xs">
-                                            Based on actual market history. {historicalResults.results.length} total contiguous sequences simulated.
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4 pt-0">
-                                        {/* Failure List */}
-                                        {historicalResults.results.filter(r => !r.success).length > 0 ? (
-                                            <div>
-                                                <h4 className="text-xs font-bold mb-2 pt-2">Failed Sequences (Money ran out)</h4>
-                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                                    {historicalResults.results.filter(r => !r.success).map(r => (
-                                                        <div key={r.startYear} className="p-2 bg-red-500/10 border border-red-500/20 rounded text-center">
-                                                            <div className="text-xs font-bold text-red-600">Start Year: {r.startYear}</div>
-                                                            <div className="text-[10px] text-muted-foreground">Failed at Age {r.failureAge}</div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="p-4 bg-green-500/10 border border-green-500/20 rounded text-center text-green-700 font-bold text-sm mt-2">
-                                                No failures found in any historical starting year!
-                                            </div>
-                                        )}
-
-                                        <div>
-                                            <h4 className="text-xs font-bold mb-2">Worst 5 Starting Years (Lowest Ending Real Wealth)</h4>
-                                            <div className="space-y-1">
-                                                {[...historicalResults.results].sort((a, b) => a.lowestRealNetWorth - b.lowestRealNetWorth).slice(0, 5).map((r, i) => (
-                                                    <div key={r.startYear} className="flex justify-between text-xs border-b border-muted last:border-0 py-1">
-                                                        <span className="font-mono text-muted-foreground">{i + 1}. {r.startYear}</span>
-                                                        <span className={r.lowestRealNetWorth <= 0 ? "text-red-600 font-bold" : ""}>
-                                                            Min Real NW: ${Math.round(r.lowestRealNetWorth).toLocaleString()}
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </AccordionContent>
+                            <LazyAccordionContent isOpen={openSections.includes('historical')}>
+                                <HistoricalAnalysisSection historicalResults={historicalResults} />
+                            </LazyAccordionContent>
                         </AccordionItem>
                     </Accordion>
                 </div>
@@ -628,43 +418,16 @@ export function CalculatorResults({
                                         <span className="text-muted-foreground">({(best.successRate * 100).toFixed(1)}%)</span>
                                     </div>
                                 </AccordionTrigger>
-                                <AccordionContent isOpen={openSections.includes('roth_compare')}>
-                                    <Card className="rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
-                                        <CardHeader className="py-3">
-                                            <CardTitle className="text-sm uppercase font-black tracking-tight">Roth Strategy Comparison</CardTitle>
-                                            <CardDescription className="text-xs">Success rate comparison across different Roth conversion strategies.</CardDescription>
-                                        </CardHeader>
-                                        <CardContent className="space-y-4">
-                                            <div className="h-[350px]">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <BarChart
-                                                        data={strategyComparison}
-                                                        layout="vertical"
-                                                        margin={{ top: 20, right: 30, left: 100, bottom: 5 }}
-                                                    >
-                                                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                                                        <XAxis type="number" domain={[0, 1]} tickFormatter={(val) => `${(val * 100).toFixed(0)}%`} />
-                                                        <YAxis type="category" dataKey="strategyName" width={100} style={{ fontSize: '12px' }} />
-                                                        <Tooltip wrapperStyle={{ zIndex: 100 }} content={<ChartTooltip titleFormatter={() => 'Strategy Comparison'} />} />
-                                                        <Bar dataKey="successRate" fill="#8884d8" radius={[0, 4, 4, 0]}>
-                                                            {strategyComparison.map((entry, index) => (
-                                                                <Cell
-                                                                    key={`cell-${index}`}
-                                                                    fill={entry.strategyName === best?.strategyName ? '#22c55e' : '#8884d8'}
-                                                                />
-                                                            ))}
-                                                        </Bar>
-                                                    </BarChart>
-                                                </ResponsiveContainer>
-                                            </div>
-                                            <div className="space-y-2 p-3 bg-muted/50 rounded-lg border text-[11px] text-muted-foreground italic leading-relaxed">
-                                                <p>
-                                                    <strong>Note on Fill Standard Deduction:</strong> This strategy focuses on converting the maximum amount possible at 0% ordinary income tax (filling the Standard Deduction).
-                                                </p>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </AccordionContent>
+                                <LazyAccordionContent isOpen={openSections.includes('roth_compare')}>
+                                    <RothStrategySection
+                                        strategyComparison={strategyComparison}
+                                        best={best}
+                                        ChartTooltip={ChartTooltip}
+                                        formatCurrency={formatCurrency}
+                                        getValue={getValue}
+                                        isReal={isReal}
+                                    />
+                                </LazyAccordionContent>
                             </AccordionItem>
                         </Accordion>
                     </div>
@@ -682,37 +445,13 @@ export function CalculatorResults({
                         >
                             <span>💸 Theoretical Annual Cash Flow</span>
                         </AccordionTrigger>
-                        <AccordionContent isOpen={openSections.includes('cash_flow')}>
-                            <Card className="col-span-1 rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
-                                <CardHeader className="py-3">
-                                    <CardTitle className="text-sm uppercase font-black tracking-tight">Theoretical Annual Cash Flow ({isReal ? 'Real' : 'Nominal'})</CardTitle>
-                                    <CardDescription className="text-xs">
-                                        Sources of income and tax costs.
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent className="h-[350px]">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart
-                                            data={transformedResults}
-                                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                                        >
-                                            <CartesianGrid strokeDasharray="3 3" />
-                                            <XAxis dataKey="year" />
-                                            <YAxis tickFormatter={(val) => `$${val / 1000}k`} />
-                                            <Tooltip wrapperStyle={{ zIndex: 100 }} content={<ChartTooltip />} />
-                                            {transformedResults.some(r => r.cashFlow.income.ss > 0) && <Bar dataKey="cashFlow.income.ss" name="Social Security" stackId="a" fill="#4ade80" />}
-                                            {transformedResults.some(r => r.cashFlow.income.other > 0) && <Bar dataKey="cashFlow.income.other" name="Additional Income" stackId="a" fill="#bef264" />}
-                                            {transformedResults.some(r => r.cashFlow.rmd > 0) && <Bar dataKey="cashFlow.rmd" name="RMD" stackId="a" fill="#fbbf24" />}
-                                            {transformedResults.some(r => r.cashFlow.withdrawals.taxable > 0) && <Bar dataKey="cashFlow.withdrawals.taxable" name="Taxable Withdrawal" stackId="a" fill="#8884d8" />}
-                                            {transformedResults.some(r => r.cashFlow.withdrawals.preTax > 0) && <Bar dataKey="cashFlow.withdrawals.preTax" name="Pre-Tax Withdrawal" stackId="a" fill="#f87171" />}
-                                            {transformedResults.some(r => r.cashFlow.withdrawals.roth > 0) && <Bar dataKey="cashFlow.withdrawals.roth" name="Roth Withdrawal" stackId="a" fill="#22d3ee" radius={[0, 0, 0, 0]} />}
-                                            <Bar dataKey="cashFlow.taxes" name="Taxes Paid" stackId="a" fill="#64748b" radius={[2, 2, 0, 0]} />
-                                            <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </CardContent>
-                            </Card>
-                        </AccordionContent>
+                        <LazyAccordionContent isOpen={openSections.includes('cash_flow')}>
+                            <CashFlowSection
+                                transformedResults={transformedResults}
+                                isReal={isReal}
+                                ChartTooltip={ChartTooltip}
+                            />
+                        </LazyAccordionContent>
                     </AccordionItem>
                 </Accordion>
             </div>
@@ -728,38 +467,13 @@ export function CalculatorResults({
                         >
                             <span>🏦 Theoretical Assets & Liabilities Over Time</span>
                         </AccordionTrigger>
-                        <AccordionContent isOpen={openSections.includes('assets')}>
-                            <Card className="col-span-1 rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
-                                <CardHeader className="py-3">
-                                    <CardTitle className="text-sm uppercase font-black tracking-tight">Theoretical Assets & Liabilities ({isReal ? 'Real' : 'Nominal'})</CardTitle>
-                                    <CardDescription className="text-xs">
-                                        Growth of assets by category vs liabilities.
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent className="h-[450px]">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart
-                                            data={transformedResults}
-                                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                                            stackOffset="sign"
-                                        >
-                                            <CartesianGrid strokeDasharray="3 3" />
-                                            <XAxis dataKey="year" />
-                                            <YAxis tickFormatter={(val) => `$${val / 1000000}M`} />
-                                            <Tooltip wrapperStyle={{ zIndex: 100 }} content={<ChartTooltip />} />
-                                            <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.8} />
-                                            <Bar dataKey="assets.roth" name="Roth" stackId="a" fill="#22d3ee" radius={[0, 0, 0, 0]} />
-                                            <Bar dataKey="assets.brokerage" name="Brokerage" stackId="a" fill="#8884d8" radius={[0, 0, 0, 0]} />
-                                            <Bar dataKey="assets.trad" name="Trad" stackId="a" fill="#f87171" radius={[0, 0, 0, 0]} />
-                                            <Bar dataKey="assets.property" name="Property" stackId="a" fill="#fbbf24" radius={[0, 0, 0, 0]} />
-                                            <Bar dataKey="assets.other" name="Other Assets" stackId="a" fill="#4ade80" radius={[2, 2, 0, 0]} />
-                                            <Bar dataKey="assets.loans" name="Loans" stackId="a" fill="#64748b" radius={[0, 0, 2, 2]} />
-                                            <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </CardContent>
-                            </Card>
-                        </AccordionContent>
+                        <LazyAccordionContent isOpen={openSections.includes('assets')}>
+                            <AssetsLiabilitySection
+                                transformedResults={transformedResults}
+                                isReal={isReal}
+                                ChartTooltip={ChartTooltip}
+                            />
+                        </LazyAccordionContent>
                     </AccordionItem>
                 </Accordion>
             </div>
@@ -775,85 +489,480 @@ export function CalculatorResults({
                         >
                             <span>📋 Theoretical Year-by-Year Detailed Breakdown</span>
                         </AccordionTrigger>
-                        <AccordionContent isOpen={openSections.includes('detailed_table')}>
-                            <Card className="rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
-                                <CardHeader className="py-3">
-                                    <CardTitle className="text-sm uppercase font-black tracking-tight">Annual Simulation Data</CardTitle>
-                                </CardHeader>
-                                <CardContent className="p-0">
-                                    <div className="max-h-[600px] overflow-auto">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow className="bg-muted/50">
-                                                    <TableHead className="sticky top-0 z-10 bg-muted shadow-sm">Year (Age)</TableHead>
-                                                    <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right">Roth-eq Net Worth {isReal ? '(Real)' : '(Nom)'}</TableHead>
-                                                    <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right">Pre-Tax</TableHead>
-                                                    <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right">Roth</TableHead>
-                                                    <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right">Taxable</TableHead>
-                                                    <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right">RMD</TableHead>
-                                                    <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right">SS (Add'l)</TableHead>
-                                                    <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right">Roth Conv</TableHead>
-                                                    <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right text-blue-600 dark:text-blue-400">Basis Reset</TableHead>
-                                                    <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right">Taxes (Rate)</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {transformedResults.map((row) => (
-                                                    <TableRow key={row.year} className="hover:bg-muted/30 transition-colors">
-                                                        <TableCell className="font-medium">{row.year} <span className="text-[10px] text-muted-foreground">({row.age})</span></TableCell>
-                                                        <TableCell className="text-right">
-                                                            <div className="font-bold text-primary">{formatCurrency(getValue(row.netWorth, row.inflationAdjustmentFactor))}</div>
-                                                        </TableCell>
-                                                        <TableCell className="text-right">
-                                                            <div>{formatCurrency(getValue(row.portfolio.preTax, row.inflationAdjustmentFactor))}</div>
-                                                            {row.cashFlow.withdrawals.preTax > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(getValue(row.cashFlow.withdrawals.preTax, row.inflationAdjustmentFactor))}</div>}
-                                                        </TableCell>
-                                                        <TableCell className="text-right">
-                                                            <div>{formatCurrency(getValue(row.portfolio.roth, row.inflationAdjustmentFactor))}</div>
-                                                            {row.cashFlow.withdrawals.roth > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(getValue(row.cashFlow.withdrawals.roth, row.inflationAdjustmentFactor))}</div>}
-                                                        </TableCell>
-                                                        <TableCell className="text-right">
-                                                            <div>{formatCurrency(getValue(row.portfolio.taxable, row.inflationAdjustmentFactor))}</div>
-                                                            <div className="text-[9px] text-muted-foreground uppercase font-black tracking-tight opacity-70">Basis: {formatCurrency(getValue(row.portfolio.taxableBasis, row.inflationAdjustmentFactor))}</div>
-                                                            {row.cashFlow.withdrawals.taxable > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(getValue(row.cashFlow.withdrawals.taxable, row.inflationAdjustmentFactor))}</div>}
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-medium">{formatCurrency(getValue(row.cashFlow.rmd, row.inflationAdjustmentFactor))}</TableCell>
-                                                        <TableCell className="text-right">
-                                                            <div className="font-medium text-green-600 dark:text-green-400">{formatCurrency(getValue(row.cashFlow.income.ss, row.inflationAdjustmentFactor))}</div>
-                                                            {row.cashFlow.income.other > 0 && <div className="text-[10px] text-green-600 font-bold">(+{formatCurrency(getValue(row.cashFlow.income.other, row.inflationAdjustmentFactor))})</div>}
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-medium text-blue-600 dark:text-blue-400">
-                                                            {row.cashFlow.rothConversion > 0 ? formatCurrency(getValue(row.cashFlow.rothConversion, row.inflationAdjustmentFactor)) : <span className="opacity-20">—</span>}
-                                                        </TableCell>
-                                                        <TableCell className="text-right">
-                                                            {row.cashFlow.taxGainHarvesting > 0 ? (
-                                                                <div className="text-blue-600 dark:text-blue-400 font-black">
-                                                                    +{formatCurrency(getValue(row.cashFlow.taxGainHarvesting, row.inflationAdjustmentFactor))}
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-muted-foreground opacity-20">—</span>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell className="text-right">
-                                                            <div className="font-bold">{formatCurrency(getValue(row.cashFlow.taxes, row.inflationAdjustmentFactor))}</div>
-                                                            <div className="text-[9px] text-muted-foreground flex flex-col items-end opacity-80 leading-tight">
-                                                                <div>Fed: {formatCurrency(row.cashFlow.taxDetails.federal)}</div>
-                                                                <div>State: {formatCurrency(row.cashFlow.taxDetails.state)}</div>
-                                                                {row.cashFlow.taxDetails.medicare > 0 && <div className="text-blue-500 font-bold">Med: {formatCurrency(row.cashFlow.taxDetails.medicare)}</div>}
-                                                                <div className="font-black mt-0.5 opacity-100">Rate: {formatPercent(row.taxDetails.marginalRate)}</div>
-                                                            </div>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </AccordionContent>
+                        <LazyAccordionContent isOpen={openSections.includes('detailed_table')}>
+                            <DetailedBreakdownSection
+                                transformedResults={transformedResults}
+                                isReal={isReal}
+                                formatCurrency={formatCurrency}
+                                getValue={getValue}
+                            />
+                        </LazyAccordionContent>
                     </AccordionItem>
                 </Accordion>
             </div>
         </div>
-    )
+    );
 }
+
+// --- Memoized Section Components ---
+
+const KeyMetricsSection = React.memo(({ monteCarloResults, singleRunResults, historicalResults, isReal, lastResult, formatCurrency, getValue }: any) => {
+    return (
+        <div className="border border-primary/20 border-t-0 p-4 rounded-b-lg bg-background/40 -mt-px">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">Ending Roth-eq Net Worth ({isReal ? 'Real' : 'Nominal'})</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="min-w-fit">
+                            <div className="text-xl sm:text-2xl font-bold text-primary">
+                                {monteCarloResults
+                                    ? formatCurrency(isReal ? monteCarloResults.medianEndingWealth : monteCarloResults.medianEndingWealthNominal)
+                                    : '--'}
+                            </div>
+                            <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
+                                Median (Monte Carlo)
+                            </p>
+                        </div>
+                        <p className="pt-2 text-xs text-muted-foreground">
+                            At age {lastResult.age} (Year {lastResult.year})
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">Success Probability</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex flex-wrap items-center justify-between gap-1 sm:gap-2">
+                            <div className="min-w-fit">
+                                <div className="text-xl sm:text-2xl font-bold">
+                                    {monteCarloResults ? `${(monteCarloResults.successRate * 100).toFixed(1)}%` : '--'}
+                                </div>
+                                <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
+                                    Monte Carlo
+                                </p>
+                            </div>
+                            <div className="h-6 sm:h-8 w-px bg-border mx-0.5 sm:mx-1" />
+                            <div className="text-right min-w-fit">
+                                <div className={`text-xl sm:text-2xl font-bold ${historicalResults ? (historicalResults.successRate === 1 ? 'text-green-600' : 'text-primary') : ''}`}>
+                                    {historicalResults ? `${(historicalResults.successRate * 100).toFixed(1)}%` : '--'}
+                                </div>
+                                <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
+                                    Historical
+                                </p>
+                            </div>
+                        </div>
+                        <p className="pt-2 text-[10px] text-muted-foreground font-bold">
+                            Chance of not running out of money
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">Spending & Taxes ({isReal ? 'Real' : 'Nominal'})</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div>
+                            <div className="text-xl sm:text-2xl font-bold">
+                                {monteCarloResults
+                                    ? formatCurrency(isReal ? monteCarloResults.medianTotalSpent : monteCarloResults.medianTotalSpentNominal)
+                                    : '--'}
+                            </div>
+                            <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
+                                Median Total Money Spent
+                            </p>
+                        </div>
+                        <div className="flex justify-between items-end gap-2">
+                            <div>
+                                <div className="text-lg font-bold">
+                                    {monteCarloResults
+                                        ? formatCurrency(isReal ? monteCarloResults.medianAnnualSpending : monteCarloResults.medianAnnualSpendingNominal)
+                                        : '--'}
+                                </div>
+                                <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
+                                    Median Annual Spending
+                                </p>
+                            </div>
+                            <div className="text-right group relative">
+                                <div className="text-lg font-bold">
+                                    {formatCurrency(singleRunResults.reduce((acc: number, curr: any) => acc + getValue(curr.cashFlow.taxes, curr.inflationAdjustmentFactor), 0))}
+                                </div>
+                                <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
+                                    Total Taxes Paid
+                                </p>
+                                <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block bg-background border border-primary/20 rounded p-2 shadow-xl z-50 text-[10px] whitespace-nowrap">
+                                    <div className="flex justify-between gap-4">
+                                        <span>Federal:</span>
+                                        <strong>{formatCurrency(singleRunResults.reduce((acc: number, curr: any) => acc + getValue(curr.taxDetails.federal, curr.inflationAdjustmentFactor), 0))}</strong>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                        <span>State:</span>
+                                        <strong>{formatCurrency(singleRunResults.reduce((acc: number, curr: any) => acc + getValue(curr.taxDetails.state, curr.inflationAdjustmentFactor), 0))}</strong>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                        <span>Medicare:</span>
+                                        <strong>{formatCurrency(singleRunResults.reduce((acc: number, curr: any) => acc + getValue(curr.taxDetails.medicare, curr.inflationAdjustmentFactor), 0))}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    );
+});
+KeyMetricsSection.displayName = "KeyMetricsSection";
+
+const MonteCarloChartSection = React.memo(({ transformedMC, isReal, ChartTooltip }: any) => {
+    return (
+        <Card className="rounded-t-none border-primary/20 border-t-0 shadow-sm text-sm -mt-px">
+            <CardHeader className="py-3">
+                <CardTitle className="text-sm uppercase font-black tracking-tight">Monte Carlo Projections (Roth-eq Net Worth - {isReal ? 'Real' : 'Nominal'})</CardTitle>
+                <CardDescription className="text-xs">Range of outcomes ({isReal ? 'Inflation Adjusted' : 'Nominal Dollars'}) - {MC_ITERATIONS} simulations</CardDescription>
+            </CardHeader>
+            <CardContent className="h-[450px]">
+                <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={transformedMC.unifiedData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="year" type="number" domain={['dataMin', 'dataMax']} />
+                        <YAxis tickFormatter={(value) => `$${value / 1000000}M`} />
+                        <Tooltip
+                            wrapperStyle={{ zIndex: 100 }}
+                            content={
+                                <ChartTooltip
+                                    isReal={isReal}
+                                    itemSorter={(a: any, b: any) => {
+                                        const order: Record<string, number> = {
+                                            "95%": 1,
+                                            "75%": 2,
+                                            "Median (50%)": 3,
+                                            "25%": 4,
+                                            "5%": 5
+                                        };
+                                        return (order[a.name] || 10) - (order[b.name] || 10);
+                                    }}
+                                />
+                            }
+                        />
+                        <Area type="monotone" dataKey="range75_95" stroke="none" fill="#4ade80" fillOpacity={0.3} tooltipType="none" name="range_95" />
+                        <Area type="monotone" dataKey="range25_75" stroke="none" fill="#22c55e" fillOpacity={0.25} tooltipType="none" name="range_75" />
+                        <Area type="monotone" dataKey="range5_25" stroke="none" fill="#ef4444" fillOpacity={0.15} tooltipType="none" name="range_25" />
+                        <Line dataKey="p95" stroke="#4ade80" strokeDasharray="5 5" dot={false} strokeOpacity={0.9} name="95%" />
+                        <Line dataKey="p75" stroke="#22c55e" strokeDasharray="3 3" dot={false} strokeOpacity={0.9} name="75%" />
+                        <Line dataKey="p50" stroke="#6366f1" strokeWidth={3} dot={false} name="Median (50%)" />
+                        <Line dataKey="p25" stroke="#22c55e" strokeDasharray="3 3" dot={false} strokeOpacity={0.9} name="25%" />
+                        <Line dataKey="p5" stroke="#ef4444" strokeDasharray="5 5" dot={false} strokeOpacity={0.9} name="5%" />
+                    </AreaChart>
+                </ResponsiveContainer>
+            </CardContent>
+        </Card>
+    );
+});
+MonteCarloChartSection.displayName = "MonteCarloChartSection";
+
+const MilestoneProjectionsSection = React.memo(({ transformedMC }: any) => {
+    return (
+        <Card className="max-w-4xl rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
+            <CardHeader>
+                <CardTitle className="text-xl font-bold flex items-center gap-2">
+                    <span className="p-1.5 bg-purple-500/10 rounded-lg">🚩</span>
+                    Milestone Projections
+                </CardTitle>
+                <CardDescription>
+                    Statistical estimates of the age when milestones are achieved across {MC_ITERATIONS} simulations.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+                <Table>
+                    <TableHeader>
+                        <TableRow className="bg-muted/30">
+                            <TableHead className="font-bold">Milestone</TableHead>
+                            <TableHead className="text-right font-bold text-green-600">99%</TableHead>
+                            <TableHead className="text-right font-bold text-green-600">95%</TableHead>
+                            <TableHead className="text-right font-bold text-green-600">75%</TableHead>
+                            <TableHead className="text-right font-bold">50%</TableHead>
+                            <TableHead className="text-right font-bold text-red-600">25%</TableHead>
+                            <TableHead className="text-right font-bold text-red-600">5%</TableHead>
+                            <TableHead className="text-right font-bold text-red-600">1%</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {Object.entries(transformedMC.milestoneStats).map(([id, stats]: [string, any]) => (
+                            <TableRow key={id} className="hover:bg-muted/20">
+                                <TableCell className="font-bold text-primary">{stats.name}</TableCell>
+                                <TableCell className="text-right font-mono font-bold text-green-600">
+                                    {stats.score99 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score99}
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-bold text-green-600">
+                                    {stats.score95 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score95}
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-bold text-green-600">
+                                    {stats.score75 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score75}
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-black text-lg">
+                                    {stats.score50 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score50}
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-bold text-red-600">
+                                    {stats.score25 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score25}
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-bold text-red-600">
+                                    {stats.score5 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score5}
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-bold text-red-600">
+                                    {stats.score1 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score1}
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+                <div className="p-3 text-[10px] text-muted-foreground italic border-t bg-muted/10">
+                    <strong>Note on Column Meanings:</strong> These percentiles represent your "Performance Score". A <strong>99% Score</strong> means you performed better than 99% of outcomes (achieving the milestone very early). A <strong>1% Score</strong> represents the worst outcome (achieving it very late or not at all).
+                </div>
+            </CardContent>
+        </Card>
+    );
+});
+MilestoneProjectionsSection.displayName = "MilestoneProjectionsSection";
+
+const HistoricalAnalysisSection = React.memo(({ historicalResults }: any) => {
+    return (
+        <Card className="rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
+            <CardHeader className="py-3">
+                <CardTitle className="text-sm uppercase font-black tracking-tight">Historical Failures & Worst Cases</CardTitle>
+                <CardDescription className="text-xs">
+                    Based on actual market history. {historicalResults.results.length} total contiguous sequences simulated.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-0">
+                {historicalResults.results.filter((r: any) => !r.success).length > 0 ? (
+                    <div>
+                        <h4 className="text-xs font-bold mb-2 pt-2">Failed Sequences (Money ran out)</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {historicalResults.results.filter((r: any) => !r.success).map((r: any) => (
+                                <div key={r.startYear} className="p-2 bg-red-500/10 border border-red-500/20 rounded text-center">
+                                    <div className="text-xs font-bold text-red-600">Start Year: {r.startYear}</div>
+                                    <div className="text-[10px] text-muted-foreground">Failed at Age {r.failureAge}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="p-4 bg-green-500/10 border border-green-500/20 rounded text-center text-green-700 font-bold text-sm mt-2">
+                        No failures found in any historical starting year!
+                    </div>
+                )}
+                <div>
+                    <h4 className="text-xs font-bold mb-2">Worst 5 Starting Years (Lowest Ending Real Wealth)</h4>
+                    <div className="space-y-1">
+                        {[...historicalResults.results].sort((a, b) => a.lowestRealNetWorth - b.lowestRealNetWorth).slice(0, 5).map((r, i) => (
+                            <div key={r.startYear} className="flex justify-between text-xs border-b border-muted last:border-0 py-1">
+                                <span className="font-mono text-muted-foreground">{i + 1}. {r.startYear}</span>
+                                <span className={r.lowestRealNetWorth <= 0 ? "text-red-600 font-bold" : ""}>
+                                    Min Real NW: ${Math.round(r.lowestRealNetWorth).toLocaleString()}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
+});
+HistoricalAnalysisSection.displayName = "HistoricalAnalysisSection";
+
+const RothStrategySection = React.memo(({ strategyComparison, best, ChartTooltip, formatCurrency, getValue, isReal }: any) => {
+    return (
+        <Card className="rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
+            <CardHeader className="py-3">
+                <CardTitle className="text-sm uppercase font-black tracking-tight">Roth Strategy Comparison</CardTitle>
+                <CardDescription className="text-xs">Success rate comparison across different Roth conversion strategies.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="h-[350px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                            data={strategyComparison}
+                            layout="vertical"
+                            margin={{ top: 20, right: 30, left: 100, bottom: 5 }}
+                        >
+                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                            <XAxis type="number" domain={[0, 1]} tickFormatter={(val) => `${(val * 100).toFixed(0)}%`} />
+                            <YAxis type="category" dataKey="strategyName" width={100} style={{ fontSize: '12px' }} />
+                            <Tooltip wrapperStyle={{ zIndex: 100 }} content={<ChartTooltip titleFormatter={() => 'Strategy Comparison'} getValue={getValue} isReal={isReal} />} />
+                            <Bar dataKey="successRate" fill="#8884d8" radius={[0, 4, 4, 0]}>
+                                {strategyComparison.map((entry: any, index: number) => (
+                                    <Cell
+                                        key={`cell-${index}`}
+                                        fill={entry.strategyName === best?.strategyName ? '#22c55e' : '#8884d8'}
+                                    />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+                <div className="space-y-2 p-3 bg-muted/50 rounded-lg border text-[11px] text-muted-foreground italic leading-relaxed">
+                    <p>
+                        <strong>Note on Fill Standard Deduction:</strong> This strategy focuses on converting the maximum amount possible at 0% ordinary income tax (filling the Standard Deduction).
+                    </p>
+                </div>
+            </CardContent>
+        </Card>
+    );
+});
+RothStrategySection.displayName = "RothStrategySection";
+
+const CashFlowSection = React.memo(({ transformedResults, isReal, ChartTooltip }: any) => {
+    return (
+        <Card className="col-span-1 rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
+            <CardHeader className="py-3">
+                <CardTitle className="text-sm uppercase font-black tracking-tight">Theoretical Annual Cash Flow ({isReal ? 'Real' : 'Nominal'})</CardTitle>
+                <CardDescription className="text-xs">
+                    Sources of income and tax costs.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="h-[350px]">
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                        data={transformedResults}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="year" />
+                        <YAxis tickFormatter={(val) => `$${val / 1000}k`} />
+                        <Tooltip wrapperStyle={{ zIndex: 100 }} content={<ChartTooltip isReal={isReal} />} />
+                        {transformedResults.some((r: any) => r.cashFlow.income.ss > 0) && <Bar dataKey="cashFlow.income.ss" name="Social Security" stackId="a" fill="#4ade80" />}
+                        {transformedResults.some((r: any) => r.cashFlow.income.other > 0) && <Bar dataKey="cashFlow.income.other" name="Additional Income" stackId="a" fill="#bef264" />}
+                        {transformedResults.some((r: any) => r.cashFlow.rmd > 0) && <Bar dataKey="cashFlow.rmd" name="RMD" stackId="a" fill="#fbbf24" />}
+                        {transformedResults.some((r: any) => r.cashFlow.withdrawals.taxable > 0) && <Bar dataKey="cashFlow.withdrawals.taxable" name="Taxable Withdrawal" stackId="a" fill="#8884d8" />}
+                        {transformedResults.some((r: any) => r.cashFlow.withdrawals.preTax > 0) && <Bar dataKey="cashFlow.withdrawals.preTax" name="Pre-Tax Withdrawal" stackId="a" fill="#f87171" />}
+                        {transformedResults.some((r: any) => r.cashFlow.withdrawals.roth > 0) && <Bar dataKey="cashFlow.withdrawals.roth" name="Roth Withdrawal" stackId="a" fill="#22d3ee" radius={[0, 0, 0, 0]} />}
+                        <Bar dataKey="cashFlow.taxes" name="Taxes Paid" stackId="a" fill="#64748b" radius={[2, 2, 0, 0]} />
+                        <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                    </BarChart>
+                </ResponsiveContainer>
+            </CardContent>
+        </Card>
+    );
+});
+CashFlowSection.displayName = "CashFlowSection";
+
+const AssetsLiabilitySection = React.memo(({ transformedResults, isReal, ChartTooltip }: any) => {
+    return (
+        <Card className="col-span-1 rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
+            <CardHeader className="py-3">
+                <CardTitle className="text-sm uppercase font-black tracking-tight">Theoretical Assets & Liabilities ({isReal ? 'Real' : 'Nominal'})</CardTitle>
+                <CardDescription className="text-xs">
+                    Growth of assets by category vs liabilities.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="h-[450px]">
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                        data={transformedResults}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                        stackOffset="sign"
+                    >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="year" />
+                        <YAxis tickFormatter={(val) => `$${val / 1000000}M`} />
+                        <Tooltip wrapperStyle={{ zIndex: 100 }} content={<ChartTooltip />} />
+                        <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.8} />
+                        <Bar dataKey="assets.roth" name="Roth" stackId="a" fill="#22d3ee" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="assets.brokerage" name="Brokerage" stackId="a" fill="#8884d8" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="assets.trad" name="Trad" stackId="a" fill="#f87171" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="assets.property" name="Property" stackId="a" fill="#fbbf24" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="assets.other" name="Other Assets" stackId="a" fill="#4ade80" radius={[2, 2, 0, 0]} />
+                        <Bar dataKey="assets.loans" name="Loans" stackId="a" fill="#64748b" radius={[0, 0, 2, 2]} />
+                        <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                    </BarChart>
+                </ResponsiveContainer>
+            </CardContent>
+        </Card>
+    );
+});
+AssetsLiabilitySection.displayName = "AssetsLiabilitySection";
+
+const DetailedBreakdownSection = React.memo(({ transformedResults, isReal, formatCurrency, getValue }: any) => {
+    const formatPercent = (val: number) => `${(val * 100).toFixed(1)}%`;
+
+    return (
+        <Card className="rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
+            <CardHeader className="py-3">
+                <CardTitle className="text-sm uppercase font-black tracking-tight">Annual Simulation Data</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+                <div className="max-h-[600px] overflow-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow className="bg-muted/50">
+                                <TableHead className="sticky top-0 z-10 bg-muted shadow-sm">Year (Age)</TableHead>
+                                <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right">Roth-eq Net Worth {isReal ? '(Real)' : '(Nom)'}</TableHead>
+                                <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right">Pre-Tax</TableHead>
+                                <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right">Roth</TableHead>
+                                <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right">Taxable</TableHead>
+                                <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right">RMD</TableHead>
+                                <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right">SS (Add'l)</TableHead>
+                                <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right">Roth Conv</TableHead>
+                                <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right text-blue-600 dark:text-blue-400">Basis Reset</TableHead>
+                                <TableHead className="sticky top-0 z-10 bg-muted shadow-sm text-right">Taxes (Rate)</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {transformedResults.map((row: any) => (
+                                <TableRow key={row.year} className="hover:bg-muted/30 transition-colors">
+                                    <TableCell className="font-medium">{row.year} <span className="text-[10px] text-muted-foreground">({row.age})</span></TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="font-bold text-primary">{formatCurrency(getValue(row.netWorth, row.inflationAdjustmentFactor))}</div>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div>{formatCurrency(getValue(row.portfolio.preTax, row.inflationAdjustmentFactor))}</div>
+                                        {row.cashFlow.withdrawals.preTax > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(getValue(row.cashFlow.withdrawals.preTax, row.inflationAdjustmentFactor))}</div>}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div>{formatCurrency(getValue(row.portfolio.roth, row.inflationAdjustmentFactor))}</div>
+                                        {row.cashFlow.withdrawals.roth > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(getValue(row.cashFlow.withdrawals.roth, row.inflationAdjustmentFactor))}</div>}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div>{formatCurrency(getValue(row.portfolio.taxable, row.inflationAdjustmentFactor))}</div>
+                                        <div className="text-[9px] text-muted-foreground uppercase font-black tracking-tight opacity-70">Basis: {formatCurrency(getValue(row.portfolio.taxableBasis, row.inflationAdjustmentFactor))}</div>
+                                        {row.cashFlow.withdrawals.taxable > 0 && <div className="text-[10px] text-red-500 font-bold">-{formatCurrency(getValue(row.cashFlow.withdrawals.taxable, row.inflationAdjustmentFactor))}</div>}
+                                    </TableCell>
+                                    <TableCell className="text-right font-medium">{formatCurrency(getValue(row.cashFlow.rmd, row.inflationAdjustmentFactor))}</TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="font-medium text-green-600 dark:text-green-400">{formatCurrency(getValue(row.cashFlow.income.ss, row.inflationAdjustmentFactor))}</div>
+                                        {row.cashFlow.income.other > 0 && <div className="text-[10px] text-green-600 font-bold">(+{formatCurrency(getValue(row.cashFlow.income.other, row.inflationAdjustmentFactor))})</div>}
+                                    </TableCell>
+                                    <TableCell className="text-right font-medium text-blue-600 dark:text-blue-400">
+                                        {row.cashFlow.rothConversion > 0 ? formatCurrency(getValue(row.cashFlow.rothConversion, row.inflationAdjustmentFactor)) : <span className="opacity-20">—</span>}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        {row.cashFlow.taxGainHarvesting > 0 ? (
+                                            <div className="text-blue-600 dark:text-blue-400 font-black">
+                                                +{formatCurrency(getValue(row.cashFlow.taxGainHarvesting, row.inflationAdjustmentFactor))}
+                                            </div>
+                                        ) : (
+                                            <span className="text-muted-foreground opacity-20">—</span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="font-bold">{formatCurrency(getValue(row.cashFlow.taxes, row.inflationAdjustmentFactor))}</div>
+                                        <div className="text-[9px] text-muted-foreground flex flex-col items-end opacity-80 leading-tight">
+                                            <div>Fed: {formatCurrency(row.cashFlow.taxDetails.federal)}</div>
+                                            <div>State: {formatCurrency(row.cashFlow.taxDetails.state)}</div>
+                                            {row.cashFlow.taxDetails.medicare > 0 && <div className="text-blue-500 font-bold">Med: {formatCurrency(row.cashFlow.taxDetails.medicare)}</div>}
+                                            <div className="font-black mt-0.5 opacity-100">Rate: {formatPercent(row.taxDetails.marginalRate)}</div>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+        </Card>
+    );
+});
+DetailedBreakdownSection.displayName = "DetailedBreakdownSection";
