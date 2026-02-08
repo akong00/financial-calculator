@@ -373,7 +373,8 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
                 }
             }
 
-            spendingNeeded += calculateExpenseAmount(exp, currentAge, inflationAccumulator, liquidPortfolioValue, state.activeCutPercent, resolvedMilestones);
+            const totalPortfolioValue = liquidPortfolioValue + currentPortfolio.property;
+            spendingNeeded += calculateExpenseAmount(exp, currentAge, inflationAccumulator, totalPortfolioValue, state.activeCutPercent, resolvedMilestones);
 
             // Step duration
             if (state.yearsRemaining > 0) {

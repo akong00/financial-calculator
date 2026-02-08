@@ -20,7 +20,7 @@ const EXPENSE_TYPES: { value: ExpenseType, label: string, icon: any }[] = [
 
 const STRATEGIES: { value: ExpenseStrategy, label: string }[] = [
     { value: 'inflation_adjusted', label: 'Keep Pace with Inflation' },
-    { value: 'percentage', label: 'Fixed % Growth (matches Inflation default)' },
+    { value: 'percentage', label: 'Percentage of Portfolio' },
     { value: 'retirement_smile', label: 'Retirement Smile (U-Curve)' },
 ];
 
@@ -109,12 +109,25 @@ export function ExpensesSection({ state, onChange }: InputSectionProps) {
                                 </div>
 
                                 <div className={STYLES.grid2}>
-                                    <CompactInput
-                                        label={item.strategy === 'percentage' ? "Withdrawal Rate" : "Annual Amount"}
-                                        value={item.amount}
-                                        onChange={(e) => updateExpense(item.id, { amount: parseFloat(e.target.value) || 0 })}
-                                        unit={item.strategy === 'percentage' ? "%" : "$"}
-                                    />
+                                    <div className="space-y-0.5 text-left">
+                                        <Label className={cn(STYLES.labelSub, "flex items-center justify-between w-full")}>
+                                            <span>{item.strategy === 'percentage' ? "Withdrawal Rate" : "Annual Amount"}</span>
+                                            {item.strategy === 'percentage' && (
+                                                <div className="group relative cursor-default">
+                                                    <HelpCircle className="w-2.5 h-2.5 text-muted-foreground/60 transition-colors" />
+                                                    <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:block w-48 p-2 bg-slate-800 text-white text-[10px] rounded shadow-xl z-50 leading-tight pointer-events-none font-medium">
+                                                        Annual spending based on % of total portfolio value (liquid assets + real estate).
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </Label>
+                                        <UnitInput
+                                            value={item.amount}
+                                            onChange={(e) => updateExpense(item.id, { amount: parseFloat(e.target.value) || 0 })}
+                                            unit={item.strategy === 'percentage' ? "%" : "$"}
+                                            color={item.strategy === 'percentage' ? "blue" : "default"}
+                                        />
+                                    </div>
                                     <CompactInput
                                         label="Min Floor ($)"
                                         value={item.floorAmount || 0}
