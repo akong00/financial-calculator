@@ -29,9 +29,10 @@ interface SampleSimulation {
 interface PercentileExplorerProps {
     sampleSimulations: SampleSimulation[];
     isReal: boolean;
+    className?: string;
 }
 
-export function PercentileExplorer({ sampleSimulations, isReal }: PercentileExplorerProps) {
+export function PercentileExplorer({ sampleSimulations, isReal, className = "" }: PercentileExplorerProps) {
     const [selectedPercentile, setSelectedPercentile] = React.useState(50);
 
     // Find the closest available sample simulation to the selected percentile
@@ -174,7 +175,7 @@ export function PercentileExplorer({ sampleSimulations, isReal }: PercentileExpl
     const failed = endingNetWorth <= 0;
 
     return (
-        <Card className="w-full bg-gradient-to-br from-background to-muted/20">
+        <Card className={`w-full bg-gradient-to-br from-background to-muted/20 ${className}`}>
             <CardHeader className="pb-4 border-b">
                 <div className="flex items-center justify-between">
                     <div className="space-y-1">
@@ -195,17 +196,34 @@ export function PercentileExplorer({ sampleSimulations, isReal }: PercentileExpl
                         <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
                             <span className="text-sm font-medium text-muted-foreground whitespace-nowrap mr-2">Select Percentile:</span>
                             <div className="flex gap-1">
-                                {availablePercentiles.map(p => (
-                                    <Button
-                                        key={p}
-                                        variant={selectedSample.percentile === p ? "default" : "outline"}
-                                        size="sm"
-                                        onClick={() => setSelectedPercentile(p)}
-                                        className={selectedSample.percentile === p ? "bg-indigo-600 hover:bg-indigo-700 min-w-[40px] h-8" : "min-w-[40px] h-8 text-muted-foreground"}
-                                    >
-                                        {p}%
-                                    </Button>
-                                ))}
+                                {availablePercentiles.map(p => {
+                                    const sample = sampleSimulations.find(s => s.percentile === p);
+                                    const isSuccess = (sample?.results[sample.results.length - 1]?.netWorth || 0) > 0;
+                                    const isSelected = selectedSample.percentile === p;
+
+                                    let variantClass = "";
+                                    if (isSelected) {
+                                        variantClass = isSuccess
+                                            ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600"
+                                            : "bg-red-600 hover:bg-red-700 text-white border-red-600";
+                                    } else {
+                                        variantClass = isSuccess
+                                            ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:text-emerald-800"
+                                            : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:text-red-800";
+                                    }
+
+                                    return (
+                                        <Button
+                                            key={p}
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setSelectedPercentile(p)}
+                                            className={`min-w-[40px] h-8 transition-colors ${variantClass}`}
+                                        >
+                                            {p}%
+                                        </Button>
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>

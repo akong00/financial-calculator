@@ -55,7 +55,7 @@ const AccordionContent = React.forwardRef<
             ref={ref}
             className={cn(
                 "text-sm transition-all duration-300 ease-in-out",
-                isOpen ? "max-h-[5000px] opacity-100 py-4 overflow-visible" : "max-h-0 opacity-0 py-0 overflow-hidden",
+                isOpen ? "max-h-[5000px] opacity-100 overflow-visible" : "max-h-0 opacity-0 overflow-hidden",
                 className
             )}
             {...props}

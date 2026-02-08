@@ -53,7 +53,7 @@ export function CalculatorResults({
     preTaxDiscount = 0
 }: CalculatorResultsProps) {
     const [isReal, setIsReal] = React.useState(true);
-    const [openSections, setOpenSections] = React.useState<string[]>([]);
+    const [openSections, setOpenSections] = React.useState<string[]>(['metrics', 'mc_chart', 'cash_flow', 'assets', 'milestones']);
 
     const toggleSections = (section: string) => {
         setOpenSections(prev =>
@@ -123,11 +123,6 @@ export function CalculatorResults({
     const transformedMC = React.useMemo(() => {
         if (!monteCarloResults) return undefined;
 
-        const transformMarketPath = (path: { val: number, inflationFactor: number }[]) => path.map((pt, i) => ({
-            year: i,
-            val: getValue(pt.val, pt.inflationFactor)
-        }));
-
         // Create unified data array from percentile bands
         const unifiedData = monteCarloResults.percentileBands.map((s, i) => {
             const scale = isReal ? 1 : s.avgInflationFactor;
@@ -149,11 +144,6 @@ export function CalculatorResults({
         return {
             ...monteCarloResults,
             unifiedData,
-            marketPaths: {
-                p50: transformMarketPath(monteCarloResults.marketPaths.p50),
-                p20: transformMarketPath(monteCarloResults.marketPaths.p20),
-                p5: transformMarketPath(monteCarloResults.marketPaths.p5)
-            }
         };
     }, [monteCarloResults, isReal]);
 
@@ -258,146 +248,183 @@ export function CalculatorResults({
             </Card>
 
             {/* Key Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Ending Roth-eq Net Worth ({isReal ? 'Real' : 'Nominal'})</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="min-w-fit">
-                            <div className="text-xl sm:text-2xl font-bold text-primary">
-                                {monteCarloResults
-                                    ? formatCurrency(isReal ? monteCarloResults.medianEndingWealth : monteCarloResults.medianEndingWealthNominal)
-                                    : '--'}
-                            </div>
-                            <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
-                                Median (Monte Carlo)
-                            </p>
-                        </div>
-                        <p className="pt-2 text-xs text-muted-foreground">
-                            At age {lastResult.age} (Year {lastResult.year})
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Success Probability</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex flex-wrap items-center justify-between gap-1 sm:gap-2">
-                            <div className="min-w-fit">
-                                <div className="text-xl sm:text-2xl font-bold">
-                                    {monteCarloResults ? `${(monteCarloResults.successRate * 100).toFixed(1)}%` : '--'}
+            <div className="px-1">
+                <Accordion className="border-none">
+                    <AccordionItem className="border-none">
+                        <AccordionTrigger
+                            isOpen={openSections.includes('metrics')}
+                            onToggle={() => toggleSections('metrics')}
+                            className={`flex items-center py-2 px-4 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary bg-muted/40 border border-primary/20 shadow-sm transition-colors ${openSections.includes('metrics') ? 'rounded-t-lg rounded-b-none border-b-0 mb-0' : 'rounded-lg'}`}
+                        >
+                            <span>📊 Key Simulation Metrics</span>
+                        </AccordionTrigger>
+                        <AccordionContent isOpen={openSections.includes('metrics')}>
+                            <div className="border border-primary/20 border-t-0 p-4 rounded-b-lg bg-background/40 -mt-px">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <Card>
+                                        <CardHeader className="pb-2">
+                                            <CardTitle className="text-sm font-medium">Ending Roth-eq Net Worth ({isReal ? 'Real' : 'Nominal'})</CardTitle>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <div className="min-w-fit">
+                                                <div className="text-xl sm:text-2xl font-bold text-primary">
+                                                    {monteCarloResults
+                                                        ? formatCurrency(isReal ? monteCarloResults.medianEndingWealth : monteCarloResults.medianEndingWealthNominal)
+                                                        : '--'}
+                                                </div>
+                                                <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
+                                                    Median (Monte Carlo)
+                                                </p>
+                                            </div>
+                                            <p className="pt-2 text-xs text-muted-foreground">
+                                                At age {lastResult.age} (Year {lastResult.year})
+                                            </p>
+                                        </CardContent>
+                                    </Card>
+                                    <Card>
+                                        <CardHeader className="pb-2">
+                                            <CardTitle className="text-sm font-medium">Success Probability</CardTitle>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <div className="flex flex-wrap items-center justify-between gap-1 sm:gap-2">
+                                                <div className="min-w-fit">
+                                                    <div className="text-xl sm:text-2xl font-bold">
+                                                        {monteCarloResults ? `${(monteCarloResults.successRate * 100).toFixed(1)}%` : '--'}
+                                                    </div>
+                                                    <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
+                                                        Monte Carlo
+                                                    </p>
+                                                </div>
+                                                <div className="h-6 sm:h-8 w-px bg-border mx-0.5 sm:mx-1" />
+                                                <div className="text-right min-w-fit">
+                                                    <div className={`text-xl sm:text-2xl font-bold ${historicalResults ? (historicalResults.successRate === 1 ? 'text-green-600' : 'text-primary') : ''}`}>
+                                                        {historicalResults ? `${(historicalResults.successRate * 100).toFixed(1)}%` : '--'}
+                                                    </div>
+                                                    <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
+                                                        Historical
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <p className="pt-2 text-[10px] text-muted-foreground font-bold">
+                                                Chance of not running out of money
+                                            </p>
+                                        </CardContent>
+                                    </Card>
+                                    <Card>
+                                        <CardHeader className="pb-2">
+                                            <CardTitle className="text-sm font-medium">Spending & Taxes ({isReal ? 'Real' : 'Nominal'})</CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4">
+                                            <div>
+                                                <div className="text-xl sm:text-2xl font-bold">
+                                                    {monteCarloResults
+                                                        ? formatCurrency(isReal ? monteCarloResults.medianTotalSpent : monteCarloResults.medianTotalSpentNominal)
+                                                        : '--'}
+                                                </div>
+                                                <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
+                                                    Median Total Money Spent
+                                                </p>
+                                            </div>
+                                            <div className="flex justify-between items-end gap-2">
+                                                <div>
+                                                    <div className="text-lg font-bold">
+                                                        {monteCarloResults
+                                                            ? formatCurrency(isReal ? monteCarloResults.medianAnnualSpending : monteCarloResults.medianAnnualSpendingNominal)
+                                                            : '--'}
+                                                    </div>
+                                                    <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
+                                                        Median Annual Spending
+                                                    </p>
+                                                </div>
+                                                <div className="text-right group relative">
+                                                    <div className="text-lg font-bold">
+                                                        {formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.cashFlow.taxes, curr.inflationAdjustmentFactor), 0))}
+                                                    </div>
+                                                    <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
+                                                        Total Taxes Paid
+                                                    </p>
+                                                    {/* Tooltip explaining the total */}
+                                                    <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block bg-background border border-primary/20 rounded p-2 shadow-xl z-50 text-[10px] whitespace-nowrap">
+                                                        <div className="flex justify-between gap-4">
+                                                            <span>Federal:</span>
+                                                            <strong>{formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.taxDetails.federal, curr.inflationAdjustmentFactor), 0))}</strong>
+                                                        </div>
+                                                        <div className="flex justify-between gap-4">
+                                                            <span>State:</span>
+                                                            <strong>{formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.taxDetails.state, curr.inflationAdjustmentFactor), 0))}</strong>
+                                                        </div>
+                                                        <div className="flex justify-between gap-4">
+                                                            <span>Medicare:</span>
+                                                            <strong>{formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.taxDetails.medicare, curr.inflationAdjustmentFactor), 0))}</strong>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
                                 </div>
-                                <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
-                                    Monte Carlo
-                                </p>
                             </div>
-                            <div className="h-6 sm:h-8 w-px bg-border mx-0.5 sm:mx-1" />
-                            <div className="text-right min-w-fit">
-                                <div className={`text-xl sm:text-2xl font-bold ${historicalResults ? (historicalResults.successRate === 1 ? 'text-green-600' : 'text-primary') : ''}`}>
-                                    {historicalResults ? `${(historicalResults.successRate * 100).toFixed(1)}%` : '--'}
-                                </div>
-                                <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
-                                    Historical
-                                </p>
-                            </div>
-                        </div>
-                        <p className="pt-2 text-[10px] text-muted-foreground font-bold">
-                            Chance of not running out of money
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Spending & Taxes ({isReal ? 'Real' : 'Nominal'})</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div>
-                            <div className="text-xl sm:text-2xl font-bold">
-                                {monteCarloResults
-                                    ? formatCurrency(isReal ? monteCarloResults.medianTotalSpent : monteCarloResults.medianTotalSpentNominal)
-                                    : '--'}
-                            </div>
-                            <p className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
-                                Median Total Money Spent
-                            </p>
-                        </div>
-                        <div className="flex justify-between items-end gap-2">
-                            <div>
-                                <div className="text-lg font-bold">
-                                    {monteCarloResults
-                                        ? formatCurrency(isReal ? monteCarloResults.medianAnnualSpending : monteCarloResults.medianAnnualSpendingNominal)
-                                        : '--'}
-                                </div>
-                                <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
-                                    Median Annual Spending
-                                </p>
-                            </div>
-                            <div className="text-right group relative">
-                                <div className="text-lg font-bold">
-                                    {formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.cashFlow.taxes, curr.inflationAdjustmentFactor), 0))}
-                                </div>
-                                <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
-                                    Total Taxes Paid
-                                </p>
-                                {/* Tooltip explaining the total */}
-                                <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block bg-background border border-primary/20 rounded p-2 shadow-xl z-50 text-[10px] whitespace-nowrap">
-                                    <div className="flex justify-between gap-4">
-                                        <span>Federal:</span>
-                                        <strong>{formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.taxDetails.federal, curr.inflationAdjustmentFactor), 0))}</strong>
-                                    </div>
-                                    <div className="flex justify-between gap-4">
-                                        <span>State:</span>
-                                        <strong>{formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.taxDetails.state, curr.inflationAdjustmentFactor), 0))}</strong>
-                                    </div>
-                                    <div className="flex justify-between gap-4">
-                                        <span>Medicare:</span>
-                                        <strong>{formatCurrency(singleRunResults.reduce((acc, curr) => acc + getValue(curr.taxDetails.medicare, curr.inflationAdjustmentFactor), 0))}</strong>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
             </div>
 
-            {/* Market Scenarios */}
-            {transformedMC && transformedMC.marketPaths && (
+
+
+            {/* Monte Carlo Chart */}
+            {transformedMC && (
                 <div className="px-1">
                     <Accordion className="border-none">
                         <AccordionItem className="border-none">
                             <AccordionTrigger
-                                isOpen={openSections.includes('mc_samples')}
-                                onToggle={() => toggleSections('mc_samples')}
-                                className="flex items-center py-2 px-4 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary bg-muted/30 rounded-lg border shadow-sm transition-colors"
+                                isOpen={openSections.includes('mc_chart')}
+                                onToggle={() => toggleSections('mc_chart')}
+                                className={`flex items-center py-2 px-4 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary bg-muted/40 border border-primary/20 shadow-sm transition-colors ${openSections.includes('mc_chart') ? 'rounded-t-lg rounded-b-none border-b-0 mb-0' : 'rounded-lg'}`}
                             >
-                                <span>Monte Carlo Stock Simulation Samples (Index Growth)</span>
+                                <span>🔮 Monte Carlo Projections (Roth-eq Net Worth)</span>
                             </AccordionTrigger>
-                            <AccordionContent isOpen={openSections.includes('mc_samples')}>
-                                <Card className="mt-2 border-primary/10">
+                            <AccordionContent isOpen={openSections.includes('mc_chart')}>
+                                <Card className="rounded-t-none border-primary/20 border-t-0 shadow-sm text-sm -mt-px">
                                     <CardHeader className="py-3">
-                                        <CardTitle className="text-sm uppercase font-black tracking-tight">Monte Carlo Stock Simulation Samples ({isReal ? 'Real' : 'Nominal'})</CardTitle>
-                                        <CardDescription className="text-xs">Visualizing cumulative index growth over the simulation period.</CardDescription>
+                                        <CardTitle className="text-sm uppercase font-black tracking-tight">Monte Carlo Projections (Roth-eq Net Worth - {isReal ? 'Real' : 'Nominal'})</CardTitle>
+                                        <CardDescription className="text-xs">Range of outcomes ({isReal ? 'Inflation Adjusted' : 'Nominal Dollars'}) - {MC_ITERATIONS} simulations</CardDescription>
                                     </CardHeader>
-                                    <CardContent className="h-[300px] pb-4">
+                                    <CardContent className="h-[450px]">
                                         <ResponsiveContainer width="100%" height="100%">
-                                            <LineChart margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                            <AreaChart data={transformedMC.unifiedData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                                                 <CartesianGrid strokeDasharray="3 3" />
-                                                <XAxis
-                                                    dataKey="year"
-                                                    type="number"
-                                                    allowDuplicatedCategory={false}
-                                                    domain={[0, (transformedMC.marketPaths.p50.length - 1)]}
-                                                    tickFormatter={(val) => `Yr ${val}`}
+                                                <XAxis dataKey="year" type="number" domain={['dataMin', 'dataMax']} />
+                                                <YAxis tickFormatter={(value) => `$${value / 1000000}M`} />
+                                                <Tooltip
+                                                    wrapperStyle={{ zIndex: 100 }}
+                                                    content={
+                                                        <ChartTooltip
+                                                            itemSorter={(a: any, b: any) => {
+                                                                const order: Record<string, number> = {
+                                                                    "95%": 1,
+                                                                    "75%": 2,
+                                                                    "Median (50%)": 3,
+                                                                    "25%": 4,
+                                                                    "5%": 5
+                                                                };
+                                                                return (order[a.name] || 10) - (order[b.name] || 10);
+                                                            }}
+                                                        />
+                                                    }
                                                 />
-                                                <YAxis tickFormatter={(value) => `${value.toFixed(1)}x`} />
-                                                <Tooltip wrapperStyle={{ zIndex: 100 }} content={<ChartTooltip titleFormatter={(l: any) => `Simulation Sample: Year ${l}`} />} />
-                                                <Line data={transformedMC.marketPaths.p50} dataKey="val" name="Median (50%)" stroke="#8884d8" dot={false} strokeWidth={2} />
-                                                <Line data={transformedMC.marketPaths.p20} dataKey="val" name="Conservative (20%)" stroke="#ffc658" dot={false} strokeWidth={2} />
-                                                <Line data={transformedMC.marketPaths.p5} dataKey="val" name="Worst (5%)" stroke="#ff0000" dot={false} strokeWidth={2} />
-                                                <Legend formatter={(value) => value.replace(/^\d\. /, '')} />
-                                            </LineChart>
+
+                                                {/* Areas - Shaded background regions */}
+                                                <Area type="monotone" dataKey="range75_95" stroke="none" fill="#4ade80" fillOpacity={0.3} tooltipType="none" name="range_95" />
+                                                <Area type="monotone" dataKey="range25_75" stroke="none" fill="#22c55e" fillOpacity={0.25} tooltipType="none" name="range_75" />
+                                                <Area type="monotone" dataKey="range5_25" stroke="none" fill="#ef4444" fillOpacity={0.15} tooltipType="none" name="range_25" />
+
+                                                {/* Trend Lines - Descending order 95 to 5 */}
+                                                <Line dataKey="p95" stroke="#4ade80" strokeDasharray="5 5" dot={false} strokeOpacity={0.9} name="95%" />
+                                                <Line dataKey="p75" stroke="#22c55e" strokeDasharray="3 3" dot={false} strokeOpacity={0.9} name="75%" />
+                                                <Line dataKey="p50" stroke="#6366f1" strokeWidth={3} dot={false} name="Median (50%)" />
+                                                <Line dataKey="p25" stroke="#22c55e" strokeDasharray="3 3" dot={false} strokeOpacity={0.9} name="25%" />
+                                                <Line dataKey="p5" stroke="#ef4444" strokeDasharray="5 5" dot={false} strokeOpacity={0.9} name="5%" />
+                                            </AreaChart>
                                         </ResponsiveContainer>
                                     </CardContent>
                                 </Card>
@@ -405,54 +432,6 @@ export function CalculatorResults({
                         </AccordionItem>
                     </Accordion>
                 </div>
-            )}
-
-            {/* Monte Carlo Chart */}
-            {transformedMC && (
-                <Card className="col-span-1">
-                    <CardHeader>
-                        <CardTitle>Monte Carlo Projections (Roth-eq Net Worth - {isReal ? 'Real' : 'Nominal'})</CardTitle>
-                        <CardDescription>Range of outcomes ({isReal ? 'Inflation Adjusted' : 'Nominal Dollars'}) - {MC_ITERATIONS} simulations</CardDescription>
-                    </CardHeader>
-                    <CardContent className="h-[450px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={transformedMC.unifiedData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="year" type="number" domain={['dataMin', 'dataMax']} />
-                                <YAxis tickFormatter={(value) => `$${value / 1000000}M`} />
-                                <Tooltip
-                                    wrapperStyle={{ zIndex: 100 }}
-                                    content={
-                                        <ChartTooltip
-                                            itemSorter={(a: any, b: any) => {
-                                                const order: Record<string, number> = {
-                                                    "95%": 1,
-                                                    "75%": 2,
-                                                    "Median (50%)": 3,
-                                                    "25%": 4,
-                                                    "5%": 5
-                                                };
-                                                return (order[a.name] || 10) - (order[b.name] || 10);
-                                            }}
-                                        />
-                                    }
-                                />
-
-                                {/* Areas - Shaded background regions */}
-                                <Area type="monotone" dataKey="range75_95" stroke="none" fill="#4ade80" fillOpacity={0.3} tooltipType="none" name="range_95" />
-                                <Area type="monotone" dataKey="range25_75" stroke="none" fill="#22c55e" fillOpacity={0.25} tooltipType="none" name="range_75" />
-                                <Area type="monotone" dataKey="range5_25" stroke="none" fill="#ef4444" fillOpacity={0.15} tooltipType="none" name="range_25" />
-
-                                {/* Trend Lines - Descending order 95 to 5 */}
-                                <Line dataKey="p95" stroke="#4ade80" strokeDasharray="5 5" dot={false} strokeOpacity={0.9} name="95%" />
-                                <Line dataKey="p75" stroke="#22c55e" strokeDasharray="3 3" dot={false} strokeOpacity={0.9} name="75%" />
-                                <Line dataKey="p50" stroke="#6366f1" strokeWidth={3} dot={false} name="Median (50%)" />
-                                <Line dataKey="p25" stroke="#22c55e" strokeDasharray="3 3" dot={false} strokeOpacity={0.9} name="25%" />
-                                <Line dataKey="p5" stroke="#ef4444" strokeDasharray="5 5" dot={false} strokeOpacity={0.9} name="5%" />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                </Card>
             )}
 
             {/* Percentile Simulation Explorer */}
@@ -463,7 +442,7 @@ export function CalculatorResults({
                             <AccordionTrigger
                                 isOpen={openSections.includes('percentile_explorer')}
                                 onToggle={() => toggleSections('percentile_explorer')}
-                                className="flex items-center py-2 px-4 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary bg-gradient-to-r from-indigo-500/10 to-purple-500/10 rounded-lg border border-indigo-500/20 shadow-sm transition-colors"
+                                className={`flex items-center py-2 px-4 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-500/30 shadow-sm transition-colors ${openSections.includes('percentile_explorer') ? 'rounded-t-lg rounded-b-none border-b-0 mb-0' : 'rounded-lg'}`}
                             >
                                 <span>🔍 Percentile Simulation Explorer</span>
                                 <div className="ml-auto flex gap-1 text-xs mr-4">
@@ -471,12 +450,11 @@ export function CalculatorResults({
                                 </div>
                             </AccordionTrigger>
                             <AccordionContent isOpen={openSections.includes('percentile_explorer')}>
-                                <div className="mt-2">
-                                    <PercentileExplorer
-                                        sampleSimulations={monteCarloResults.sampleSimulations}
-                                        isReal={isReal}
-                                    />
-                                </div>
+                                <PercentileExplorer
+                                    sampleSimulations={monteCarloResults.sampleSimulations}
+                                    isReal={isReal}
+                                    className="rounded-t-none border-indigo-500/30 border-t-0 shadow-sm -mt-px"
+                                />
                             </AccordionContent>
                         </AccordionItem>
                     </Accordion>
@@ -485,64 +463,79 @@ export function CalculatorResults({
 
             {/* Milestone Percentiles Table */}
             {transformedMC && transformedMC.milestoneStats && Object.keys(transformedMC.milestoneStats).length > 0 && (
-                <Card className="max-w-4xl">
-                    <CardHeader>
-                        <CardTitle className="text-xl font-bold flex items-center gap-2">
-                            <span className="p-1.5 bg-purple-500/10 rounded-lg">🚩</span>
-                            Milestone Projections (Age Reached)
-                        </CardTitle>
-                        <CardDescription>
-                            Statistical estimates of the age when milestones are achieved across {MC_ITERATIONS} simulations.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="bg-muted/30">
-                                    <TableHead className="font-bold">Milestone</TableHead>
-                                    <TableHead className="text-right font-bold text-green-600">99%</TableHead>
-                                    <TableHead className="text-right font-bold text-green-600">95%</TableHead>
-                                    <TableHead className="text-right font-bold text-green-600">75%</TableHead>
-                                    <TableHead className="text-right font-bold">50%</TableHead>
-                                    <TableHead className="text-right font-bold text-red-600">25%</TableHead>
-                                    <TableHead className="text-right font-bold text-red-600">5%</TableHead>
-                                    <TableHead className="text-right font-bold text-red-600">1%</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {Object.entries(transformedMC.milestoneStats).map(([id, stats]) => (
-                                    <TableRow key={id} className="hover:bg-muted/20">
-                                        <TableCell className="font-bold text-primary">{stats.name}</TableCell>
-                                        <TableCell className="text-right font-mono font-bold text-green-600">
-                                            {stats.score99 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score99}
-                                        </TableCell>
-                                        <TableCell className="text-right font-mono font-bold text-green-600">
-                                            {stats.score95 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score95}
-                                        </TableCell>
-                                        <TableCell className="text-right font-mono font-bold text-green-600">
-                                            {stats.score75 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score75}
-                                        </TableCell>
-                                        <TableCell className="text-right font-mono font-black text-lg">
-                                            {stats.score50 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score50}
-                                        </TableCell>
-                                        <TableCell className="text-right font-mono font-bold text-red-600">
-                                            {stats.score25 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score25}
-                                        </TableCell>
-                                        <TableCell className="text-right font-mono font-bold text-red-600">
-                                            {stats.score5 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score5}
-                                        </TableCell>
-                                        <TableCell className="text-right font-mono font-bold text-red-600">
-                                            {stats.score1 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score1}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                        <div className="p-3 text-[10px] text-muted-foreground italic border-t bg-muted/10">
-                            <strong>Note on Column Meanings:</strong> These percentiles represent your "Performance Score". A <strong>99% Score</strong> means you performed better than 99% of outcomes (achieving the milestone very early). A <strong>1% Score</strong> represents the worst outcome (achieving it very late or not at all).
-                        </div>
-                    </CardContent>
-                </Card>
+                <div className="px-1">
+                    <Accordion className="border-none">
+                        <AccordionItem className="border-none">
+                            <AccordionTrigger
+                                isOpen={openSections.includes('milestones')}
+                                onToggle={() => toggleSections('milestones')}
+                                className={`flex items-center py-2 px-4 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary bg-muted/40 border border-primary/20 shadow-sm transition-colors ${openSections.includes('milestones') ? 'rounded-t-lg rounded-b-none border-b-0 mb-0' : 'rounded-lg'}`}
+                            >
+                                <span>🚩 Milestone Projections</span>
+                            </AccordionTrigger>
+                            <AccordionContent isOpen={openSections.includes('milestones')}>
+                                <Card className="max-w-4xl rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
+                                    <CardHeader>
+                                        <CardTitle className="text-xl font-bold flex items-center gap-2">
+                                            <span className="p-1.5 bg-purple-500/10 rounded-lg">🚩</span>
+                                            Milestone Projections
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Statistical estimates of the age when milestones are achieved across {MC_ITERATIONS} simulations.
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="p-0">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow className="bg-muted/30">
+                                                    <TableHead className="font-bold">Milestone</TableHead>
+                                                    <TableHead className="text-right font-bold text-green-600">99%</TableHead>
+                                                    <TableHead className="text-right font-bold text-green-600">95%</TableHead>
+                                                    <TableHead className="text-right font-bold text-green-600">75%</TableHead>
+                                                    <TableHead className="text-right font-bold">50%</TableHead>
+                                                    <TableHead className="text-right font-bold text-red-600">25%</TableHead>
+                                                    <TableHead className="text-right font-bold text-red-600">5%</TableHead>
+                                                    <TableHead className="text-right font-bold text-red-600">1%</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {Object.entries(transformedMC.milestoneStats).map(([id, stats]) => (
+                                                    <TableRow key={id} className="hover:bg-muted/20">
+                                                        <TableCell className="font-bold text-primary">{stats.name}</TableCell>
+                                                        <TableCell className="text-right font-mono font-bold text-green-600">
+                                                            {stats.score99 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score99}
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-mono font-bold text-green-600">
+                                                            {stats.score95 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score95}
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-mono font-bold text-green-600">
+                                                            {stats.score75 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score75}
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-mono font-black text-lg">
+                                                            {stats.score50 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score50}
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-mono font-bold text-red-600">
+                                                            {stats.score25 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score25}
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-mono font-bold text-red-600">
+                                                            {stats.score5 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score5}
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-mono font-bold text-red-600">
+                                                            {stats.score1 >= 999 ? <span className="text-[10px] text-muted-foreground italic">Not Reached</span> : stats.score1}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                        <div className="p-3 text-[10px] text-muted-foreground italic border-t bg-muted/10">
+                                            <strong>Note on Column Meanings:</strong> These percentiles represent your "Performance Score". A <strong>99% Score</strong> means you performed better than 99% of outcomes (achieving the milestone very early). A <strong>1% Score</strong> represents the worst outcome (achieving it very late or not at all).
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
+                </div>
             )}
 
             {/* Historical Simulation Analysis */}
@@ -553,16 +546,16 @@ export function CalculatorResults({
                             <AccordionTrigger
                                 isOpen={openSections.includes('historical')}
                                 onToggle={() => toggleSections('historical')}
-                                className="flex items-center py-2 px-4 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary bg-muted/30 rounded-lg border shadow-sm transition-colors"
+                                className={`flex items-center py-2 px-4 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary bg-muted/40 border border-primary/20 shadow-sm transition-colors ${openSections.includes('historical') ? 'rounded-t-lg rounded-b-none border-b-0 mb-0' : 'rounded-lg'}`}
                             >
-                                <span>Historical Sequence Analysis (1928-2025)</span>
+                                <span>🏛️ Historical Sequence Analysis (1928-2025)</span>
                                 <div className="ml-auto flex gap-1 text-xs mr-4">
                                     <span className="text-muted-foreground">Success Rate:</span>
                                     <span className={`font-bold ${historicalResults.successRate > 0.9 ? 'text-green-500' : 'text-red-500'}`}>{(historicalResults.successRate * 100).toFixed(1)}%</span>
                                 </div>
                             </AccordionTrigger>
                             <AccordionContent isOpen={openSections.includes('historical')}>
-                                <Card className="mt-2 border-primary/10">
+                                <Card className="rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
                                     <CardHeader className="py-3">
                                         <CardTitle className="text-sm uppercase font-black tracking-tight">Historical Failures & Worst Cases</CardTitle>
                                         <CardDescription className="text-xs">
@@ -626,9 +619,9 @@ export function CalculatorResults({
                                 <AccordionTrigger
                                     isOpen={openSections.includes('roth_compare')}
                                     onToggle={() => toggleSections('roth_compare')}
-                                    className="flex items-center py-2 px-4 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary bg-muted/30 rounded-lg border shadow-sm transition-colors"
+                                    className={`flex items-center py-2 px-4 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary bg-muted/40 border border-primary/20 shadow-sm transition-colors ${openSections.includes('roth_compare') ? 'rounded-t-lg rounded-b-none border-b-0 mb-0' : 'rounded-lg'}`}
                                 >
-                                    <span>Roth Strategy Comparison</span>
+                                    <span>⚖️ Roth Strategy Comparison</span>
                                     <div className="ml-auto flex items-center gap-1 text-xs mr-4">
                                         <span className="text-muted-foreground">Best:</span>
                                         <span className="font-bold text-green-500">{best.strategyName}</span>
@@ -636,7 +629,7 @@ export function CalculatorResults({
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent isOpen={openSections.includes('roth_compare')}>
-                                    <Card className="mt-2 border-primary/10">
+                                    <Card className="rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
                                         <CardHeader className="py-3">
                                             <CardTitle className="text-sm uppercase font-black tracking-tight">Roth Strategy Comparison</CardTitle>
                                             <CardDescription className="text-xs">Success rate comparison across different Roth conversion strategies.</CardDescription>
@@ -679,67 +672,97 @@ export function CalculatorResults({
             })()}
 
             {/* Cash Flow Chart */}
-            <Card className="col-span-1">
-                <CardHeader>
-                    <CardTitle>Theoretical Annual Cash Flow</CardTitle>
-                    <CardDescription>
-                        Sources of income and tax costs ({isReal ? 'Real' : 'Nominal'}).
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="h-[350px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                            data={transformedResults}
-                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+            <div className="px-1">
+                <Accordion className="border-none">
+                    <AccordionItem className="border-none">
+                        <AccordionTrigger
+                            isOpen={openSections.includes('cash_flow')}
+                            onToggle={() => toggleSections('cash_flow')}
+                            className={`flex items-center py-2 px-4 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary bg-muted/40 border border-primary/20 shadow-sm transition-colors ${openSections.includes('cash_flow') ? 'rounded-t-lg rounded-b-none border-b-0 mb-0' : 'rounded-lg'}`}
                         >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="year" />
-                            <YAxis tickFormatter={(val) => `$${val / 1000}k`} />
-                            <Tooltip wrapperStyle={{ zIndex: 100 }} content={<ChartTooltip />} />
-                            {transformedResults.some(r => r.cashFlow.income.ss > 0) && <Bar dataKey="cashFlow.income.ss" name="Social Security" stackId="a" fill="#4ade80" />}
-                            {transformedResults.some(r => r.cashFlow.income.other > 0) && <Bar dataKey="cashFlow.income.other" name="Additional Income" stackId="a" fill="#bef264" />}
-                            {transformedResults.some(r => r.cashFlow.rmd > 0) && <Bar dataKey="cashFlow.rmd" name="RMD" stackId="a" fill="#fbbf24" />}
-                            {transformedResults.some(r => r.cashFlow.withdrawals.taxable > 0) && <Bar dataKey="cashFlow.withdrawals.taxable" name="Taxable Withdrawal" stackId="a" fill="#8884d8" />}
-                            {transformedResults.some(r => r.cashFlow.withdrawals.preTax > 0) && <Bar dataKey="cashFlow.withdrawals.preTax" name="Pre-Tax Withdrawal" stackId="a" fill="#f87171" />}
-                            {transformedResults.some(r => r.cashFlow.withdrawals.roth > 0) && <Bar dataKey="cashFlow.withdrawals.roth" name="Roth Withdrawal" stackId="a" fill="#22d3ee" />}
-                            <Bar dataKey="cashFlow.taxes" name="Taxes Paid" stackId="a" fill="#64748b" />
-                            <Legend />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </CardContent>
-            </Card>
+                            <span>💸 Theoretical Annual Cash Flow</span>
+                        </AccordionTrigger>
+                        <AccordionContent isOpen={openSections.includes('cash_flow')}>
+                            <Card className="col-span-1 rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
+                                <CardHeader className="py-3">
+                                    <CardTitle className="text-sm uppercase font-black tracking-tight">Theoretical Annual Cash Flow ({isReal ? 'Real' : 'Nominal'})</CardTitle>
+                                    <CardDescription className="text-xs">
+                                        Sources of income and tax costs.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="h-[350px]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={transformedResults}
+                                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" />
+                                            <XAxis dataKey="year" />
+                                            <YAxis tickFormatter={(val) => `$${val / 1000}k`} />
+                                            <Tooltip wrapperStyle={{ zIndex: 100 }} content={<ChartTooltip />} />
+                                            {transformedResults.some(r => r.cashFlow.income.ss > 0) && <Bar dataKey="cashFlow.income.ss" name="Social Security" stackId="a" fill="#4ade80" />}
+                                            {transformedResults.some(r => r.cashFlow.income.other > 0) && <Bar dataKey="cashFlow.income.other" name="Additional Income" stackId="a" fill="#bef264" />}
+                                            {transformedResults.some(r => r.cashFlow.rmd > 0) && <Bar dataKey="cashFlow.rmd" name="RMD" stackId="a" fill="#fbbf24" />}
+                                            {transformedResults.some(r => r.cashFlow.withdrawals.taxable > 0) && <Bar dataKey="cashFlow.withdrawals.taxable" name="Taxable Withdrawal" stackId="a" fill="#8884d8" />}
+                                            {transformedResults.some(r => r.cashFlow.withdrawals.preTax > 0) && <Bar dataKey="cashFlow.withdrawals.preTax" name="Pre-Tax Withdrawal" stackId="a" fill="#f87171" />}
+                                            {transformedResults.some(r => r.cashFlow.withdrawals.roth > 0) && <Bar dataKey="cashFlow.withdrawals.roth" name="Roth Withdrawal" stackId="a" fill="#22d3ee" radius={[0, 0, 0, 0]} />}
+                                            <Bar dataKey="cashFlow.taxes" name="Taxes Paid" stackId="a" fill="#64748b" radius={[2, 2, 0, 0]} />
+                                            <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </CardContent>
+                            </Card>
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
+            </div>
 
             {/* Assets Stacked Bar Chart */}
-            <Card className="col-span-1">
-                <CardHeader>
-                    <CardTitle>Theoretical Assets & Liabilities Over Time</CardTitle>
-                    <CardDescription>
-                        Growth of assets by category vs liabilities ({isReal ? 'Real' : 'Nominal'}).
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="h-[450px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                            data={transformedResults}
-                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                            stackOffset="sign"
+            <div className="px-1">
+                <Accordion className="border-none">
+                    <AccordionItem className="border-none">
+                        <AccordionTrigger
+                            isOpen={openSections.includes('assets')}
+                            onToggle={() => toggleSections('assets')}
+                            className={`flex items-center py-2 px-4 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary bg-muted/40 border border-primary/20 shadow-sm transition-colors ${openSections.includes('assets') ? 'rounded-t-lg rounded-b-none border-b-0 mb-0' : 'rounded-lg'}`}
                         >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="year" />
-                            <YAxis tickFormatter={(val) => `$${val / 1000000}M`} />
-                            <Tooltip wrapperStyle={{ zIndex: 100 }} content={<ChartTooltip />} />
-                            <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.8} />
-                            <Bar dataKey="assets.roth" name="Roth" stackId="a" fill="#22d3ee" />
-                            <Bar dataKey="assets.brokerage" name="Brokerage" stackId="a" fill="#8884d8" />
-                            <Bar dataKey="assets.trad" name="Trad" stackId="a" fill="#f87171" />
-                            <Bar dataKey="assets.property" name="Property" stackId="a" fill="#fbbf24" />
-                            <Bar dataKey="assets.other" name="Other Assets" stackId="a" fill="#4ade80" />
-                            <Bar dataKey="assets.loans" name="Loans" stackId="a" fill="#64748b" />
-                            <Legend />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </CardContent>
-            </Card>
+                            <span>🏦 Theoretical Assets & Liabilities Over Time</span>
+                        </AccordionTrigger>
+                        <AccordionContent isOpen={openSections.includes('assets')}>
+                            <Card className="col-span-1 rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
+                                <CardHeader className="py-3">
+                                    <CardTitle className="text-sm uppercase font-black tracking-tight">Theoretical Assets & Liabilities ({isReal ? 'Real' : 'Nominal'})</CardTitle>
+                                    <CardDescription className="text-xs">
+                                        Growth of assets by category vs liabilities.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="h-[450px]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={transformedResults}
+                                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                                            stackOffset="sign"
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" />
+                                            <XAxis dataKey="year" />
+                                            <YAxis tickFormatter={(val) => `$${val / 1000000}M`} />
+                                            <Tooltip wrapperStyle={{ zIndex: 100 }} content={<ChartTooltip />} />
+                                            <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.8} />
+                                            <Bar dataKey="assets.roth" name="Roth" stackId="a" fill="#22d3ee" radius={[0, 0, 0, 0]} />
+                                            <Bar dataKey="assets.brokerage" name="Brokerage" stackId="a" fill="#8884d8" radius={[0, 0, 0, 0]} />
+                                            <Bar dataKey="assets.trad" name="Trad" stackId="a" fill="#f87171" radius={[0, 0, 0, 0]} />
+                                            <Bar dataKey="assets.property" name="Property" stackId="a" fill="#fbbf24" radius={[0, 0, 0, 0]} />
+                                            <Bar dataKey="assets.other" name="Other Assets" stackId="a" fill="#4ade80" radius={[2, 2, 0, 0]} />
+                                            <Bar dataKey="assets.loans" name="Loans" stackId="a" fill="#64748b" radius={[0, 0, 2, 2]} />
+                                            <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </CardContent>
+                            </Card>
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
+            </div>
 
             {/* Detailed Table */}
             <div className="px-1">
@@ -748,12 +771,12 @@ export function CalculatorResults({
                         <AccordionTrigger
                             isOpen={openSections.includes('detailed_table')}
                             onToggle={() => toggleSections('detailed_table')}
-                            className="flex items-center py-2 px-4 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary bg-muted/30 rounded-lg border shadow-sm transition-colors"
+                            className={`flex items-center py-2 px-4 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary bg-muted/40 border border-primary/20 shadow-sm transition-colors ${openSections.includes('detailed_table') ? 'rounded-t-lg rounded-b-none border-b-0 mb-0' : 'rounded-lg'}`}
                         >
-                            <span>Theoretical Year-by-Year Detailed Breakdown</span>
+                            <span>📋 Theoretical Year-by-Year Detailed Breakdown</span>
                         </AccordionTrigger>
                         <AccordionContent isOpen={openSections.includes('detailed_table')}>
-                            <Card className="mt-2 border-primary/10">
+                            <Card className="rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
                                 <CardHeader className="py-3">
                                     <CardTitle className="text-sm uppercase font-black tracking-tight">Annual Simulation Data</CardTitle>
                                 </CardHeader>
