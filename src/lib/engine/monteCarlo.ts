@@ -341,7 +341,7 @@ export async function runMonteCarlo(
             })
         ),
         // Store sample simulations at key percentiles for the percentile explorer
-        sampleSimulations: [5, 25, 50, 75, 95].map(p => {
+        sampleSimulations: [1, 5, 10, 20, 30, 50, 75, 95].map(p => {
             const idx = Math.floor(resultsData.length * (p / 100));
             const data = resultsData[idx];
             return {
