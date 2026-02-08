@@ -2,6 +2,7 @@
 import { TAX_DATA_2025, calculateFederalTax, calculateIRMAA, FilingStatus, scaleTaxConstants, calculateStateTax } from './taxes';
 import { calculateSocialSecurityBenefit, calculateTaxableSocialSecurity, SocialSecurityInput } from './socialSecurity';
 import { calculateRMD } from './rmd';
+import { MilestoneTrigger } from '@/types/scenario-types';
 
 // --- Types ---
 
@@ -305,6 +306,44 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
                         if (currentAge >= targetAge) {
                             resolvedMilestones[m.id] = targetAge;
                         }
+                    }
+                } else if (m.condition.type === 'composite') {
+                    const evalTrigger = (t: MilestoneTrigger): boolean => {
+                        let leftValue = 0;
+                        const totalPortfolio = liquidPortfolioValue + currentPortfolio.property;
+
+                        switch (t.leftType) {
+                            case 'age':
+                                leftValue = currentAge;
+                                break;
+                            case 'portfolio_value':
+                                leftValue = totalPortfolio;
+                                break;
+                            case 'portfolio_percent':
+                                leftValue = totalPortfolio * ((t.leftRate || 0) / 100);
+                                break;
+                        }
+
+                        // Adjust right value for inflation if it's a dollar-based comparison
+                        const effectiveRight = t.leftType === 'age' ? t.rightValue : t.rightValue * inflationAccumulator;
+
+                        switch (t.operator) {
+                            case '>': return leftValue > effectiveRight;
+                            case '<': return leftValue < effectiveRight;
+                            case '>=': return leftValue >= effectiveRight;
+                            case '<=': return leftValue <= effectiveRight;
+                            case '==': return Math.abs(leftValue - effectiveRight) < 1;
+                            default: return false;
+                        }
+                    };
+
+                    const results = m.condition.triggers.map(evalTrigger);
+                    const isMet = m.condition.logic === 'all'
+                        ? (results.length > 0 && results.every(r => r === true))
+                        : (results.length > 0 && results.some(r => r === true));
+
+                    if (isMet) {
+                        resolvedMilestones[m.id] = currentAge;
                     }
                 }
             }

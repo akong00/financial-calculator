@@ -11,16 +11,33 @@ export type MonteCarloDistributionType = 'historical' | 'custom';
 
 export type AssetType = 'savings' | 'taxable' | 'traditional' | 'roth' | 'property' | 'other';
 
+export type MilestoneTriggerValueType = 'age' | 'portfolio_value' | 'portfolio_percent';
+
+export type MilestoneOperator = '>' | '<' | '>=' | '<=' | '==';
+
+export interface MilestoneTrigger {
+    id: string;
+    leftType: MilestoneTriggerValueType;
+    leftRate?: number; // Used when leftType is 'portfolio_percent'
+    operator: MilestoneOperator;
+    rightValue: number;
+}
+
 export type MilestoneCondition =
     | {
-        type: 'portfolio_percent_greater_than_value';
-        portfolioPercent: number; // e.g. 4
-        targetValue: number; // inflation adjusted
+        type: 'composite';
+        logic: 'all' | 'any';
+        triggers: MilestoneTrigger[];
     }
     | {
         type: 'offset_from_milestone';
         baseMilestoneId: string;
-        offsetYears: number; // can be negative (e.g., -2 = "2 years before")
+        offsetYears: number;
+    }
+    | {
+        type: 'portfolio_percent_greater_than_value';
+        portfolioPercent: number;
+        targetValue: number;
     };
 
 export interface Milestone {
