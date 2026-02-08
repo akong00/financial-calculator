@@ -97,13 +97,14 @@ export function PercentileExplorer({ sampleSimulations, isReal }: PercentileExpl
         if (!selectedSample) return [];
         let cumulative = 1.0;
         let infAccumulator = 1.0;
-        const data = [{ year: 0, index: 1.0 }];
+        const startYear = selectedSample.results[0]?.year || 0;
+        const data = [{ year: startYear, index: 1.0 }];
 
         selectedSample.marketPath.forEach((m, i) => {
             cumulative *= (1 + m.stockReturn);
             infAccumulator *= (1 + m.inflation);
             data.push({
-                year: i + 1,
+                year: startYear + i + 1,
                 index: isReal ? cumulative / infAccumulator : cumulative
             });
         });
@@ -130,7 +131,7 @@ export function PercentileExplorer({ sampleSimulations, isReal }: PercentileExpl
                                 </div>
                                 <span className="font-black text-foreground font-mono">
                                     {typeof item.value === 'number'
-                                        ? (item.name === 'index' ? `${item.value.toFixed(2)}x` : formatCurrency(item.value))
+                                        ? (item.name === 'Stock Index' ? `${item.value.toFixed(2)}x` : formatCurrency(item.value))
                                         : item.value}
                                 </span>
                             </div>
@@ -235,7 +236,7 @@ export function PercentileExplorer({ sampleSimulations, isReal }: PercentileExpl
                     <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={marketIndexData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="year" tickFormatter={(val) => `Yr ${val}`} />
+                            <XAxis dataKey="year" />
                             <YAxis tickFormatter={(value) => `${value.toFixed(1)}x`} />
                             <Tooltip wrapperStyle={{ zIndex: 100 }} content={<ChartTooltip titleFormatter={(l: any) => `Year ${l}`} />} />
                             <Line dataKey="index" name="Stock Index" stroke="#6366f1" strokeWidth={2} dot={false} />
