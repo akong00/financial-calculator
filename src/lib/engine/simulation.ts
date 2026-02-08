@@ -149,6 +149,12 @@ export interface AnnualResult {
         rmd: number;
         rothConversion: number;
         taxGainHarvesting: number;
+        savingsDetails?: {
+            taxable: number;
+            roth: number;
+            preTax: number;
+            cash: number;
+        };
     };
     taxDetails: {
         agi: number;
@@ -702,7 +708,13 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
                 withdrawals,
                 rmd,
                 rothConversion: rothConversionAmount,
-                taxGainHarvesting: taxGainHarvestingAmount
+                taxGainHarvesting: taxGainHarvestingAmount,
+                savingsDetails: {
+                    taxable: brokerageContribution,
+                    roth: rothContribution + megaBackdoorContribution,
+                    preTax: trad401kContribution,
+                    cash: Math.max(0, -postTaxGap - brokerageContribution - rothContribution - megaBackdoorContribution) // Remaining surplus stays in cash if not allocated elsewhere
+                }
             },
             taxDetails: {
                 agi: taxRes.incomeSummary.agi,

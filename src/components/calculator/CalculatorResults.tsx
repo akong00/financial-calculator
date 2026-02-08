@@ -22,6 +22,7 @@ import {
     Bar,
     Cell,
     ReferenceLine,
+    Sankey,
 } from "recharts"
 import {
     Table,
@@ -155,7 +156,7 @@ export function CalculatorResults({
     preTaxDiscount = 0
 }: CalculatorResultsProps) {
     const [isReal, setIsReal] = React.useState(true);
-    const [openSections, setOpenSections] = React.useState<string[]>(['metrics', 'mc_chart', 'cash_flow', 'assets', 'milestones']);
+    const [openSections, setOpenSections] = React.useState<string[]>(['metrics', 'mc_chart', 'cash_flow', 'sankey', 'assets', 'milestones']);
 
     const toggleSections = React.useCallback((section: string) => {
         setOpenSections(prev =>
@@ -216,7 +217,15 @@ export function CalculatorResults({
                         cash: getValue(r.cashFlow.withdrawals.cash, inf),
                     },
                     rothConversion: getValue(r.cashFlow.rothConversion, inf),
-                    taxGainHarvesting: getValue(r.cashFlow.taxGainHarvesting, inf)
+                    taxGainHarvesting: getValue(r.cashFlow.taxGainHarvesting, inf),
+                    spending: getValue(r.cashFlow.spending, inf),
+                    debtPayments: getValue(r.cashFlow.debtPayments, inf),
+                    savingsDetails: r.cashFlow.savingsDetails ? {
+                        taxable: getValue(r.cashFlow.savingsDetails.taxable, inf),
+                        roth: getValue(r.cashFlow.savingsDetails.roth, inf),
+                        preTax: getValue(r.cashFlow.savingsDetails.preTax, inf),
+                        cash: getValue(r.cashFlow.savingsDetails.cash, inf),
+                    } : undefined
                 }
             };
         });
@@ -450,6 +459,27 @@ export function CalculatorResults({
                                 transformedResults={transformedResults}
                                 isReal={isReal}
                                 ChartTooltip={ChartTooltip}
+                            />
+                        </LazyAccordionContent>
+                    </AccordionItem>
+                </Accordion>
+            </div>
+
+            {/* Sankey Flow Chart */}
+            <div className="px-1">
+                <Accordion className="border-none">
+                    <AccordionItem className="border-none">
+                        <AccordionTrigger
+                            isOpen={openSections.includes('sankey')}
+                            onToggle={() => toggleSections('sankey')}
+                            className={`flex items-center py-2 px-4 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary bg-muted/40 border border-primary/20 shadow-sm transition-colors ${openSections.includes('sankey') ? 'rounded-t-lg rounded-b-none border-b-0 mb-0' : 'rounded-lg'}`}
+                        >
+                            <span>🌊 Annual Cash Flow Breakdown (Sankey)</span>
+                        </AccordionTrigger>
+                        <LazyAccordionContent isOpen={openSections.includes('sankey')}>
+                            <SankeyChartSection
+                                transformedResults={transformedResults}
+                                isReal={isReal}
                             />
                         </LazyAccordionContent>
                     </AccordionItem>
@@ -848,6 +878,290 @@ const CashFlowSection = React.memo(({ transformedResults, isReal, ChartTooltip }
     );
 });
 CashFlowSection.displayName = "CashFlowSection";
+
+const SankeyChartSection = React.memo(({ transformedResults, isReal }: any) => {
+    const minAge = transformedResults[0]?.age || 0;
+    const maxAge = transformedResults[transformedResults.length - 1]?.age || 100;
+    const [selectedAge, setSelectedAge] = React.useState(minAge);
+
+    const dataForAge = React.useMemo(() => {
+        return transformedResults.find((r: any) => r.age === selectedAge) || transformedResults[0];
+    }, [transformedResults, selectedAge]);
+
+    const sankeyData = React.useMemo(() => {
+        if (!dataForAge) return { nodes: [], links: [] };
+
+        const cf = dataForAge.cashFlow;
+        const td = cf.taxDetails || {};
+        const inf = dataForAge.inflationAdjustmentFactor || 1;
+
+        // Stage 0: Sources
+        const ss = cf.income.ss;
+        const otherInc = cf.income.other;
+        const wTaxable = cf.withdrawals.taxable;
+        const wPreTax = cf.withdrawals.preTax;
+        const wRoth = cf.withdrawals.roth;
+        const wCash = cf.withdrawals.cash;
+        const rmd = cf.rmd;
+
+        // Stage 1: Income Types
+        const earnedIncome = otherInc;
+        const withdrawals = wTaxable + wPreTax + wRoth + wCash + rmd;
+        const ssIncome = ss;
+
+        // Stage 2: Flow Type
+        const taxes = cf.taxes;
+        const totalInflow = earnedIncome + withdrawals + ssIncome;
+        const netInflow = Math.max(0, totalInflow - taxes);
+
+        // Stage 3: Expense Types
+        const livingExp = cf.spending;
+        const debtPMT = cf.debtPayments;
+        const savingsDetails = cf.savingsDetails || { taxable: 0, roth: 0, preTax: 0, cash: 0 };
+        const savings = savingsDetails.taxable + savingsDetails.roth + savingsDetails.preTax + savingsDetails.cash;
+
+        // Destinations (for taxes)
+        const fedTax = td.federal || 0;
+        const stateTax = td.state || 0;
+        const medicare = td.medicare || 0;
+
+        const allNodes = [
+            // Sources (0-6)
+            { name: "Social Security", color: "#4ade80" }, // 0
+            { name: "Salary / Other", color: "#bef264" },     // 1
+            { name: "Taxable WD", color: "#8884d8" },      // 2
+            { name: "Pre-Tax WD", color: "#f87171" },      // 3
+            { name: "Roth WD", color: "#22d3ee" },         // 4
+            { name: "Cash WD", color: "#94a3b8" },         // 5
+            { name: "RMD", color: "#fbbf24" },             // 6
+
+            // Stage 1: Income Type (7-9)
+            { name: "Other Income", color: "#4ade80" },    // 7
+            { name: "Earned Income", color: "#bef264" },   // 8
+            { name: "Withdrawals", color: "#f472b6" },     // 9
+
+            // Stage 2: Flow Type (10-11)
+            { name: "Net Inflow", color: "#4ade80" },      // 10
+            { name: "Tax Withholding", color: "#64748b" }, // 11
+
+            // Stage 3: Expense Type (12-15)
+            { name: "Living Expenses", color: "#3b82f6" }, // 12
+            { name: "Debt Payments", color: "#f43f5e" },   // 13
+            { name: "Savings", color: "#10b981" },         // 14
+            { name: "Taxes Cost", color: "#64748b" },      // 15
+
+            // Destinations (16-24)
+            { name: "Lifestyle", color: "#3b82f6" },       // 16
+            { name: "Loan Repayments", color: "#f43f5e" }, // 17
+            { name: "Brokerage", color: "#10b981" },       // 18
+            { name: "Roth Accounts", color: "#22d3ee" },   // 19
+            { name: "Traditional/401k", color: "#f87171" },// 20
+            { name: "Cash Savings", color: "#94a3b8" },    // 21
+            { name: "Federal Tax", color: "#64748b" },     // 22
+            { name: "State Tax", color: "#64748b" },       // 23
+            { name: "Medicare Premiums", color: "#64748b" },// 24
+        ];
+
+        const rawLinks: any[] = [];
+
+        // Sources -> Stage 1
+        if (ssIncome > 0) rawLinks.push({ source: 0, target: 7, value: ssIncome });
+        if (earnedIncome > 0) rawLinks.push({ source: 1, target: 8, value: earnedIncome });
+        if (wTaxable > 0) rawLinks.push({ source: 2, target: 9, value: wTaxable });
+        if (wPreTax > 0) rawLinks.push({ source: 3, target: 9, value: wPreTax });
+        if (wRoth > 0) rawLinks.push({ source: 4, target: 9, value: wRoth });
+        if (wCash > 0) rawLinks.push({ source: 5, target: 9, value: wCash });
+        if (rmd > 0) rawLinks.push({ source: 6, target: 9, value: rmd });
+
+        // Stage 1 -> Stage 2 (Tax vs Net)
+        const items = [
+            { id: 7, val: ssIncome },
+            { id: 8, val: earnedIncome },
+            { id: 9, val: withdrawals }
+        ].filter(i => i.val > 0.01);
+
+        const totalForTax = items.reduce((sum, i) => sum + i.val, 0);
+        if (totalForTax > 0) {
+            items.forEach(i => {
+                const taxPart = (i.val / totalForTax) * taxes;
+                const netPart = i.val - taxPart;
+                if (netPart > 0.01) rawLinks.push({ source: i.id, target: 10, value: netPart });
+                if (taxPart > 0.01) rawLinks.push({ source: i.id, target: 11, value: taxPart });
+            });
+        }
+
+        // Stage 2 -> Stage 3
+        if (netInflow > 0.01) {
+            if (livingExp > 0) rawLinks.push({ source: 10, target: 12, value: Math.min(netInflow, livingExp) });
+            const remaining = Math.max(0, netInflow - livingExp);
+            if (debtPMT > 0 && remaining > 0) rawLinks.push({ source: 10, target: 13, value: Math.min(remaining, debtPMT) });
+            const finalSaved = Math.max(0, netInflow - livingExp - debtPMT);
+            if (finalSaved > 0) rawLinks.push({ source: 10, target: 14, value: finalSaved });
+        }
+        if (taxes > 0.01) rawLinks.push({ source: 11, target: 15, value: taxes });
+
+        // Stage 3 -> Destinations
+        if (livingExp > 0.01) rawLinks.push({ source: 12, target: 16, value: livingExp });
+        if (debtPMT > 0.01) rawLinks.push({ source: 13, target: 17, value: debtPMT });
+
+        if (savingsDetails.taxable > 0.01) rawLinks.push({ source: 14, target: 18, value: savingsDetails.taxable });
+        if (savingsDetails.roth > 0.01) rawLinks.push({ source: 14, target: 19, value: savingsDetails.roth });
+        if (savingsDetails.preTax > 0.01) rawLinks.push({ source: 14, target: 20, value: savingsDetails.preTax });
+        if (savingsDetails.cash > 0.01) rawLinks.push({ source: 14, target: 21, value: savingsDetails.cash });
+
+        if (fedTax > 0.01) rawLinks.push({ source: 15, target: 22, value: fedTax });
+        if (stateTax > 0.01) rawLinks.push({ source: 15, target: 23, value: stateTax });
+        if (medicare > 0.01) rawLinks.push({ source: 15, target: 24, value: medicare });
+
+        // Filter out very small links and empty nodes
+        const filteredLinks = rawLinks.filter(l => l.value > 0.01);
+        const usedNodeIndices = new Set<number>();
+        filteredLinks.forEach(l => {
+            usedNodeIndices.add(l.source);
+            usedNodeIndices.add(l.target);
+        });
+
+        const finalNodes: any[] = [];
+        const indexMap = new Map<number, number>();
+        allNodes.forEach((node, idx) => {
+            if (usedNodeIndices.has(idx)) {
+                indexMap.set(idx, finalNodes.length);
+                finalNodes.push(node);
+            }
+        });
+
+        const finalLinks = filteredLinks.map(l => ({
+            ...l,
+            source: indexMap.get(l.source),
+            target: indexMap.get(l.target)
+        }));
+
+        return { nodes: finalNodes, links: finalLinks };
+    }, [dataForAge]);
+
+    const CustomNode = ({ x, y, width, height, index, payload }: any) => {
+        // Simple logic for label placement: first 2 layers on the right, rest on the left or vice versa
+        // Better: just check if x is in the right half of the chart area. 
+        // We'll use a fixed threshold or just check if it's the last layer (x > 600)
+        const isRightHalf = x > 400;
+
+        return (
+            <g>
+                <rect
+                    x={x}
+                    y={y}
+                    width={width}
+                    height={height}
+                    fill={payload.color || "#8884d8"}
+                    stroke="#fff"
+                    strokeWidth={1}
+                    fillOpacity={0.8}
+                />
+                <text
+                    x={isRightHalf ? x - 6 : x + width + 6}
+                    y={y + height / 2 - 4}
+                    textAnchor={isRightHalf ? "end" : "start"}
+                    dominantBaseline="middle"
+                    fontSize="10"
+                    fontWeight="bold"
+                    fill="currentColor"
+                    className="fill-foreground font-mono"
+                >
+                    {payload.name}
+                </text>
+                <text
+                    x={isRightHalf ? x - 6 : x + width + 6}
+                    y={y + height / 2 + 8}
+                    textAnchor={isRightHalf ? "end" : "start"}
+                    dominantBaseline="middle"
+                    fontSize="9"
+                    fontWeight="medium"
+                    fill="currentColor"
+                    className="fill-primary/80 font-mono"
+                >
+                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(payload.value)}
+                </text>
+            </g>
+        );
+    };
+
+    return (
+        <Card className="rounded-t-none border-primary/20 border-t-0 shadow-sm -mt-px">
+            <CardHeader className="py-3">
+                <div className="flex flex-col gap-4">
+                    <div>
+                        <CardTitle className="text-sm uppercase font-black tracking-tight">Annual Cash Flow Breakdown ({isReal ? 'Real' : 'Nominal'})</CardTitle>
+                        <CardDescription className="text-xs">Visualize how money flows from sources to destinations at age {selectedAge}.</CardDescription>
+                    </div>
+                    <div className="space-y-2 bg-muted/40 p-4 rounded-xl border border-primary/10 shadow-inner">
+                        <div className="flex justify-between items-center px-1">
+                            <Label htmlFor="age-slider" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Adjust Age Projection</Label>
+                            <span className="text-xl font-black text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20">{selectedAge}</span>
+                        </div>
+                        <input
+                            id="age-slider"
+                            type="range"
+                            min={minAge}
+                            max={maxAge}
+                            value={selectedAge}
+                            onChange={(e) => setSelectedAge(parseInt(e.target.value))}
+                            className="w-full h-2 bg-primary/20 rounded-lg appearance-none cursor-pointer accent-primary"
+                        />
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent className="h-[500px] pt-4">
+                {sankeyData.links.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                        <Sankey
+                            data={sankeyData}
+                            node={<CustomNode />}
+                            link={{ stroke: 'currentColor', strokeOpacity: 0.1 }}
+                            margin={{ top: 10, left: 10, bottom: 10, right: 10 }}
+                            nodePadding={20}
+                            sort={false}
+                        >
+                            <Tooltip content={<SankeyTooltip />} />
+                        </Sankey>
+                    </ResponsiveContainer>
+                ) : (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                        No flow data for this age.
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+});
+SankeyChartSection.displayName = "SankeyChartSection";
+
+const SankeyTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+        const data = payload[0].payload;
+        const formatVal = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
+
+        if (data.source && data.target) {
+            return (
+                <div className="bg-background border-2 border-primary/20 rounded-xl p-2 shadow-2xl z-50 text-[11px]">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="font-bold text-muted-foreground">{data.source.name}</span>
+                        <span className="text-primary opacity-50">→</span>
+                        <span className="font-bold text-muted-foreground">{data.target.name}</span>
+                    </div>
+                    <div className="font-black text-foreground font-mono">{formatVal(data.value)}</div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="bg-background border-2 border-primary/20 rounded-xl p-2 shadow-2xl z-50 text-[11px]">
+                <div className="font-bold text-muted-foreground mb-1">{data.name}</div>
+                <div className="font-black text-foreground font-mono">{formatVal(data.value)}</div>
+            </div>
+        );
+    }
+    return null;
+};
 
 const AssetsLiabilitySection = React.memo(({ transformedResults, isReal, ChartTooltip }: any) => {
     return (
