@@ -3,13 +3,29 @@
 import * as React from "react";
 import { useScenarios } from "@/contexts/ScenarioContext";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Copy } from "lucide-react";
+import { Plus, Trash2, Copy, Share2, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "../theme-toggle";
 import { Menu, ChevronLeft, ChevronRight } from "lucide-react";
 
 export function ScenarioSidebar({ isExpanded, onToggle }: { isExpanded: boolean, onToggle: () => void }) {
-    const { scenarios, activeScenarioId, setActiveScenario, addScenario, deleteScenario, duplicateScenario } = useScenarios();
+    const { scenarios, activeScenarioId, setActiveScenario, addScenario, deleteScenario, duplicateScenario, importScenario } = useScenarios();
+
+    const handleShare = (scenario: any) => {
+        const encoded = btoa(JSON.stringify({
+            name: scenario.name,
+            inputState: scenario.inputState
+        }));
+        navigator.clipboard.writeText(encoded);
+        alert('Scenario copied to clipboard!');
+    };
+
+    const handleImport = () => {
+        const encoded = prompt('Paste the shared scenario string:');
+        if (encoded) {
+            importScenario(encoded);
+        }
+    };
 
     return (
         <div className="flex flex-col h-full bg-card">
@@ -85,6 +101,19 @@ export function ScenarioSidebar({ isExpanded, onToggle }: { isExpanded: boolean,
                                 >
                                     <Copy className="h-3 w-3" />
                                 </button>
+                                <button
+                                    className={cn(
+                                        "p-1 rounded hover:bg-primary/20",
+                                        activeScenarioId === scenario.id && "text-primary-foreground hover:bg-primary/30"
+                                    )}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleShare(scenario);
+                                    }}
+                                    title="Share scenario"
+                                >
+                                    <Share2 className="h-3 w-3" />
+                                </button>
                                 {scenarios.length > 1 && (
                                     <button
                                         className={cn(
@@ -117,6 +146,18 @@ export function ScenarioSidebar({ isExpanded, onToggle }: { isExpanded: boolean,
                     >
                         <Plus className="h-4 w-4" />
                         {isExpanded && <span className="ml-2">Add Scenario</span>}
+                    </Button>
+                    <Button
+                        onClick={handleImport}
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                            "text-primary/70 hover:text-primary hover:bg-primary/10",
+                            isExpanded ? "w-full justify-start px-3" : "h-9 w-9 p-0"
+                        )}
+                    >
+                        <Upload className="h-4 w-4" />
+                        {isExpanded && <span className="ml-2">Import Scenario</span>}
                     </Button>
                 </div>
             </div>

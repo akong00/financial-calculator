@@ -18,6 +18,7 @@ interface ScenarioContextType {
     updateScenarioInputs: (id: string, state: CalculatorState) => void;
     renameScenario: (id: string, name: string) => void;
     runSimulationForScenario: (id: string) => Promise<void>;
+    importScenario: (encodedString: string) => void;
 }
 
 const ScenarioContext = React.createContext<ScenarioContextType | undefined>(undefined);
@@ -181,6 +182,30 @@ export function ScenarioProvider({ children }: { children: React.ReactNode }) {
         }
     }, [scenarios]);
 
+    const importScenario = React.useCallback((encodedString: string) => {
+        try {
+            const decoded = JSON.parse(atob(encodedString));
+
+            // Basic validation
+            if (!decoded.name || !decoded.inputState || !Array.isArray(decoded.inputState.assets)) {
+                throw new Error('Invalid scenario format');
+            }
+
+            const newScenario: Scenario = {
+                ...decoded,
+                id: generateId(), // Always generate a new ID
+                results: undefined // Don't import results
+            };
+
+            setScenarios(prev => [...prev, newScenario]);
+            setActiveScenarioId(newScenario.id);
+            setActiveTab('inputs');
+        } catch (error) {
+            console.error('Failed to import scenario:', error);
+            alert('Failed to import scenario. The string might be invalid or corrupted.');
+        }
+    }, [generateId]);
+
     const value: ScenarioContextType = {
         scenarios,
         activeScenarioId,
@@ -194,7 +219,8 @@ export function ScenarioProvider({ children }: { children: React.ReactNode }) {
         setActiveTab,
         updateScenarioInputs,
         renameScenario,
-        runSimulationForScenario
+        runSimulationForScenario,
+        importScenario
     };
 
     return (
