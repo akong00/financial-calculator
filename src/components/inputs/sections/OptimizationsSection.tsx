@@ -4,10 +4,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "../../ui/checkbox";  // Changed to relative import
-import { Field, CompactInput, STYLES } from "@/components/inputs/shared/FormComponents";
+import { CompactInput, STYLES } from "@/components/inputs/shared/FormComponents";
 import { cn } from "@/lib/utils";
 import { HistoricalDistributionChart } from "@/components/inputs/shared/HistoricalDistributionChart";
-import { ROLLING_REAL_RETURNS_MEAN } from "@/lib/data/rollingReturns";
 
 export function OptimizationsSection({ state, onChange }: InputSectionProps) {
     const handleChange = (field: string, value: string | number | boolean) => {

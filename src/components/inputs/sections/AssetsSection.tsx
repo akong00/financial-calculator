@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Home, TrendingUp, DollarSign, PiggyBank } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ROLLING_REAL_RETURNS_MEAN } from "@/lib/data/rollingReturns";
-import { Label } from "@/components/ui/label"; // Added Label import
 
 const ASSET_TYPES: { value: AssetType, label: string, icon: React.ReactNode }[] = [
     { value: 'taxable', label: 'Brokerage (Taxable)', icon: <TrendingUp className="w-4 h-4" /> },
