@@ -3,13 +3,13 @@
 import * as React from "react";
 import { useScenarios } from "@/contexts/ScenarioContext";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "../theme-toggle";
 import { Menu, ChevronLeft, ChevronRight } from "lucide-react";
 
 export function ScenarioSidebar({ isExpanded, onToggle }: { isExpanded: boolean, onToggle: () => void }) {
-    const { scenarios, activeScenarioId, setActiveScenario, addScenario, deleteScenario } = useScenarios();
+    const { scenarios, activeScenarioId, setActiveScenario, addScenario, deleteScenario, duplicateScenario } = useScenarios();
 
     return (
         <div className="flex flex-col h-full bg-card">
@@ -70,20 +70,37 @@ export function ScenarioSidebar({ isExpanded, onToggle }: { isExpanded: boolean,
                             </span>
                         )}
 
-                        {isExpanded && scenarios.length > 1 && (
-                            <button
-                                className={cn(
-                                    "opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/20",
-                                    activeScenarioId === scenario.id && "text-primary-foreground hover:bg-destructive/30"
+                        {isExpanded && (
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                    className={cn(
+                                        "p-1 rounded hover:bg-primary/20",
+                                        activeScenarioId === scenario.id && "text-primary-foreground hover:bg-primary/30"
+                                    )}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        duplicateScenario(scenario.id);
+                                    }}
+                                    title="Duplicate scenario"
+                                >
+                                    <Copy className="h-3 w-3" />
+                                </button>
+                                {scenarios.length > 1 && (
+                                    <button
+                                        className={cn(
+                                            "p-1 rounded hover:bg-destructive/20",
+                                            activeScenarioId === scenario.id && "text-primary-foreground hover:bg-destructive/30"
+                                        )}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            deleteScenario(scenario.id);
+                                        }}
+                                        title="Delete scenario"
+                                    >
+                                        <Trash2 className="h-3 w-3" />
+                                    </button>
                                 )}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteScenario(scenario.id);
-                                }}
-                                title="Delete scenario"
-                            >
-                                <Trash2 className="h-3 w-3" />
-                            </button>
+                            </div>
                         )}
                     </div>
                 ))}

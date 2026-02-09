@@ -14,6 +14,7 @@ interface ScenarioContextType {
     deleteScenario: (id: string) => void;
     setActiveScenario: (id: string) => void;
     setActiveTab: (tab: 'inputs' | 'outputs') => void;
+    duplicateScenario: (id: string) => void;
     updateScenarioInputs: (id: string, state: CalculatorState) => void;
     renameScenario: (id: string, name: string) => void;
     runSimulationForScenario: (id: string) => Promise<void>;
@@ -122,6 +123,21 @@ export function ScenarioProvider({ children }: { children: React.ReactNode }) {
         setActiveScenarioId(id);
     }, []);
 
+    const duplicateScenario = React.useCallback((id: string) => {
+        const original = scenarios.find(s => s.id === id);
+        if (!original) return;
+
+        const newScenario: Scenario = {
+            id: generateId(),
+            name: `${original.name} (Copy)`,
+            inputState: JSON.parse(JSON.stringify(original.inputState)) // Deep copy
+        };
+
+        setScenarios(prev => [...prev, newScenario]);
+        setActiveScenarioId(newScenario.id);
+        setActiveTab('inputs');
+    }, [scenarios, generateId]);
+
     const updateScenarioInputs = React.useCallback((id: string, state: CalculatorState) => {
         setScenarios(prev => prev.map(s =>
             s.id === id ? { ...s, inputState: state } : s
@@ -173,6 +189,7 @@ export function ScenarioProvider({ children }: { children: React.ReactNode }) {
         progress,
         addScenario,
         deleteScenario,
+        duplicateScenario,
         setActiveScenario,
         setActiveTab,
         updateScenarioInputs,
