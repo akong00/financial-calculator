@@ -1,6 +1,6 @@
 // Generated file - do not edit manually
 export const ROLLING_REAL_RETURNS_MEAN = 0.0550;
-// ~1920-2026 (Active period)
+// 1871-2026
 export const ROLLING_REAL_RETURNS = [
     // 0.0781,
     // 0.1007,
