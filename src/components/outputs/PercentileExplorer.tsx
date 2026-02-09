@@ -24,6 +24,9 @@ interface SampleSimulation {
     percentile: number;
     results: AnnualResult[];
     marketPath: { stockReturn: number, bondReturn: number, cashReturn: number, inflation: number, propertyReturn: number }[];
+    isExhausted: boolean;
+    failureYear?: number;
+    failureAge?: number;
 }
 
 interface PercentileExplorerProps {
@@ -179,7 +182,7 @@ export const PercentileExplorer = React.memo(({ sampleSimulations, isReal, class
     const availablePercentiles = sampleSimulations.map(s => s.percentile);
     const lastResult = transformedResults[transformedResults.length - 1];
     const endingNetWorth = lastResult?.netWorth || 0;
-    const failed = endingNetWorth <= 0;
+    const failed = selectedSample.isExhausted || endingNetWorth <= 0;
 
     return (
         <Card className={`w-full bg-gradient-to-br from-background to-muted/20 ${className}`}>
@@ -205,7 +208,7 @@ export const PercentileExplorer = React.memo(({ sampleSimulations, isReal, class
                             <div className="flex gap-1">
                                 {availablePercentiles.map(p => {
                                     const sample = sampleSimulations.find(s => s.percentile === p);
-                                    const isSuccess = (sample?.results[sample.results.length - 1]?.netWorth || 0) > 0;
+                                    const isSuccess = sample && !sample.isExhausted && (sample.results[sample.results.length - 1]?.netWorth || 0) > 0;
                                     const isSelected = selectedSample.percentile === p;
 
                                     let variantClass = "";
@@ -253,7 +256,7 @@ export const PercentileExplorer = React.memo(({ sampleSimulations, isReal, class
                         <div className="p-4 bg-muted/40 rounded-xl border border-border/50">
                             <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Outcome</div>
                             <div className={`text-2xl font-black tracking-tight ${failed ? 'text-red-500' : 'text-emerald-600'}`}>
-                                {failed ? 'Failed' : 'Success'}
+                                {failed ? `Failed (Age ${selectedSample.failureAge ?? lastResult?.age})` : 'Success'}
                             </div>
                         </div>
                     </div>

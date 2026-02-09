@@ -55,29 +55,16 @@ export function runHistoricalSimulation(baseParams: Omit<SimulationParams, 'mark
             marketReturns
         };
 
-        const { results: annualResults } = runSimulation(params);
+        const { results: annualResults, isExhausted, failureYear: simFailureYear, failureAge: simFailureAge } = runSimulation(params);
 
         // Analyze Outcome
         const lastRes = annualResults[annualResults.length - 1];
-        let success = true;
-        let failureYear: number | undefined;
-        let failureAge: number | undefined;
+        let success = !isExhausted;
+        let failureYear = simFailureYear;
+        let failureAge = simFailureAge;
         let lowestRealNW = Infinity;
 
         for (const r of annualResults) {
-            // Failure check: Liquid assets near zero?
-            // Note: netWorth includes Property, but Property is illiquid. 
-            // We should check liquid portfolio.
-            const liquidPortfolio = r.portfolio.taxable + r.portfolio.preTax + r.portfolio.roth + r.portfolio.cash;
-
-            if (liquidPortfolio < 100) {
-                if (success) {
-                    success = false;
-                    failureYear = simStartYear + (r.year - params.startYear);
-                    failureAge = r.age;
-                }
-            }
-
             const realNW = r.netWorth / r.inflationAdjustmentFactor;
             if (realNW < lowestRealNW) lowestRealNW = realNW;
         }

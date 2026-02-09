@@ -59,11 +59,13 @@ export interface MonteCarloResult {
         score5: number,
         score1: number   // Worst Case (Bottom 1% outcome = Latest)
     }>;
-    // Sample simulations for percentile explorer (allows visualizing specific outcomes)
     sampleSimulations?: {
         percentile: number;  // 5, 25, 50, 75, 95
         results: AnnualResult[];
         marketPath: { stockReturn: number, bondReturn: number, cashReturn: number, inflation: number, propertyReturn: number }[];
+        isExhausted: boolean;
+        failureYear?: number;
+        failureAge?: number;
     }[];
 }
 
@@ -142,7 +144,10 @@ export async function runMonteCarlo(
         netWorth: number,
         results: AnnualResult[],
         marketPath: { stockReturn: number, bondReturn: number, cashReturn: number, inflation: number, propertyReturn: number }[],
-        resolvedMilestones: Record<string, number>
+        resolvedMilestones: Record<string, number>,
+        isExhausted: boolean,
+        failureYear?: number,
+        failureAge?: number
     }[] = [];
 
     const BATCH_SIZE = 500;
@@ -165,7 +170,7 @@ export async function runMonteCarlo(
         const result = runSimulation(runParams);
         const finalNetWorth = result.results[result.results.length - 1].netWorth;
 
-        if (finalNetWorth > 0) {
+        if (!result.isExhausted && finalNetWorth > 0) {
             successCount++;
         }
 
@@ -173,7 +178,10 @@ export async function runMonteCarlo(
             netWorth: finalNetWorth,
             results: result.results,
             marketPath,
-            resolvedMilestones: result.resolvedMilestones
+            resolvedMilestones: result.resolvedMilestones,
+            isExhausted: result.isExhausted,
+            failureYear: result.failureYear,
+            failureAge: result.failureAge
         });
 
         // Track milestones
@@ -215,11 +223,22 @@ export async function runMonteCarlo(
 
     // Sort by Duration (failure year), then by Final REAL Net Worth.
     resultsData.sort((a, b) => {
-        const failYearA = a.results.findIndex(r => r.netWorth <= 0);
-        const failYearB = b.results.findIndex(r => r.netWorth <= 0);
+        // Find failure year: first year where portfolio was exhausted OR net worth <= 0
+        const failYearA = a.results.findIndex((r, idx) => r.netWorth <= 0 || (a.isExhausted && idx === a.results.length - 1 && a.results.some(res => res.cashFlow.withdrawals.total < res.cashFlow.totalExpenses - res.cashFlow.income.gross)));
+        // Wait, the simulation already handles exhaustion. If isExhausted is true, 
+        // it means at some point they couldn't meet spending.
 
-        const durationA = failYearA === -1 ? Infinity : failYearA;
-        const durationB = failYearB === -1 ? Infinity : failYearB;
+        // Let's find the FIRST year where withdrawal total < (expenses - income)
+        const getFirstFailureYear = (data: typeof resultsData[0]) => {
+            const idx = data.results.findIndex(r => {
+                const spendingShortfall = r.cashFlow.totalExpenses - r.cashFlow.income.gross - r.cashFlow.withdrawals.total;
+                return spendingShortfall > 0.1; // Small threshold for floating point
+            });
+            return idx === -1 ? Infinity : idx;
+        };
+
+        const durationA = getFirstFailureYear(a);
+        const durationB = getFirstFailureYear(b);
 
         if (durationA !== durationB) {
             return durationA - durationB;
@@ -347,7 +366,10 @@ export async function runMonteCarlo(
             return {
                 percentile: p,
                 results: data.results,
-                marketPath: data.marketPath
+                marketPath: data.marketPath,
+                isExhausted: data.isExhausted,
+                failureYear: data.failureYear,
+                failureAge: data.failureAge
             };
         })
     };

@@ -269,7 +269,13 @@ function calculateExpenseAmount(strategy: SimExpenseStrategy, currentAge: number
     return base;
 }
 
-export function runSimulation(params: SimulationParams): { results: AnnualResult[], resolvedMilestones: Record<string, number> } {
+export function runSimulation(params: SimulationParams): {
+    results: AnnualResult[],
+    resolvedMilestones: Record<string, number>,
+    isExhausted: boolean,
+    failureYear?: number,
+    failureAge?: number
+} {
     const results: AnnualResult[] = [];
 
     // Working State
@@ -284,6 +290,8 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
     }));
 
     let portfolioExhausted = false;
+    let failureYear: number | undefined;
+    let failureAge: number | undefined;
 
     // Tracking
     let currentAge = params.currentAge;
@@ -539,7 +547,11 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
 
             withdrawals.total = (postTaxGap - remaining);
             if (remaining > 0.01) {
-                portfolioExhausted = true;
+                if (!portfolioExhausted) {
+                    portfolioExhausted = true;
+                    failureYear = year;
+                    failureAge = currentAge;
+                }
             }
         } else {
             // SURPLUS: Keep it as liquid buffer for now, allocate after final taxes
@@ -806,5 +818,5 @@ export function runSimulation(params: SimulationParams): { results: AnnualResult
         currentAge++;
     }
 
-    return { results, resolvedMilestones };
+    return { results, resolvedMilestones, isExhausted: portfolioExhausted, failureYear, failureAge };
 }
