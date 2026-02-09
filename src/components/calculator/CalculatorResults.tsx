@@ -474,7 +474,7 @@ export function CalculatorResults({
                             onToggle={() => toggleSections('sankey')}
                             className={`flex items-center py-2 px-4 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary bg-muted/40 border border-primary/20 shadow-sm transition-colors ${openSections.includes('sankey') ? 'rounded-t-lg rounded-b-none border-b-0 mb-0' : 'rounded-lg'}`}
                         >
-                            <span>🌊 Annual Cash Flow Breakdown (Sankey)</span>
+                            <span>🌊 Theoretical Annual Cash Flow Breakdown (Sankey)</span>
                         </AccordionTrigger>
                         <LazyAccordionContent isOpen={openSections.includes('sankey')}>
                             <SankeyChartSection
@@ -1090,7 +1090,7 @@ const SankeyChartSection = React.memo(({ transformedResults, isReal }: any) => {
             <CardHeader className="py-3">
                 <div className="flex flex-col gap-4">
                     <div>
-                        <CardTitle className="text-sm uppercase font-black tracking-tight">Annual Cash Flow Breakdown ({isReal ? 'Real' : 'Nominal'})</CardTitle>
+                        <CardTitle className="text-sm uppercase font-black tracking-tight">Theoretical Annual Cash Flow Breakdown ({isReal ? 'Real' : 'Nominal'})</CardTitle>
                         <CardDescription className="text-xs">Visualize how money flows from sources to destinations at age {selectedAge}.</CardDescription>
                     </div>
                     <div className="space-y-2 bg-muted/40 p-4 rounded-xl border border-primary/10 shadow-inner">
