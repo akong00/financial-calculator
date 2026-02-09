@@ -835,6 +835,9 @@ const RothStrategySection = React.memo(({ strategyComparison, best, ChartTooltip
                 </div>
                 <div className="space-y-2 p-3 bg-muted/50 rounded-lg border text-[11px] text-muted-foreground italic leading-relaxed">
                     <p>
+                        <strong>Note on No Roth Conversion:</strong> This is the baseline strategy where no conversions are performed. It often serves as a control to see if conversions are actually beneficial.
+                    </p>
+                    <p>
                         <strong>Note on Fill Standard Deduction:</strong> This strategy focuses on converting the maximum amount possible at 0% ordinary income tax (filling the Standard Deduction).
                     </p>
                 </div>

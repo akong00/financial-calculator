@@ -19,6 +19,11 @@ export async function findBestRothStrategy(
 
     const candidates: { name: string, desc: string, config: SimulationParams['strategy']['rothConversion'] }[] = [
         {
+            name: "No Roth Conversion",
+            desc: "Do not perform any Roth conversions.",
+            config: { type: 'none' }
+        },
+        {
             name: "Fill Standard Deduction",
             desc: "Always fill the Standard Deduction with Roth conversions, regardless of impact on LTCG taxation.",
             config: { type: 'fill_bracket', targetBracketRate: 0, stayIn0PercentZone: false }
